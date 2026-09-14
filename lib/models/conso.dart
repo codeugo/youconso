@@ -114,7 +114,8 @@ class ConsoDetail {
   final String refValue;
 
   factory ConsoDetail.fromJson(Map json) => ConsoDetail(
-    label: _text(json['libelle']),
+    label: _text(json['libelle'])
+        .replaceFirst("Heures d'appel", "Temps d'appel"),
     value: _text(json['valeur']),
     refValue: _text(json['valeurRef']),
   );

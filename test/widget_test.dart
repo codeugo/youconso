@@ -68,6 +68,7 @@ void main() {
     expect(calls.kind, ConsoKind.calls);
     expect(calls.details.first.hasQuota, isFalse);
     expect(calls.details.first.displayValue, '48 s');
+    expect(calls.details.first.label, "Temps d'appel en France");
 
     expect(conso.categories[1].isInternational, isTrue);
 
