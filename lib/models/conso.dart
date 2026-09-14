@@ -147,6 +147,19 @@ class ConsoDetail {
     return v < 0 ? 0 : (v > 1 ? 1 : v);
   }
 
+  String? get remaining {
+    final used = _number(value);
+    final total = _number(refValue);
+    final quota = this.quota;
+    if (used == null || total == null || quota == null) return null;
+    final left = used >= total ? 0.0 : total - used;
+    final number = left == left.roundToDouble()
+        ? '${left.round()}'
+        : left.toStringAsFixed(1).replaceAll('.', ',');
+    final unit = quota.replaceFirst(RegExp(r'^[\d.,]+\s*'), '');
+    return unit.isEmpty ? number : '$number $unit';
+  }
+
   static double? _number(String text) {
     final duration = _parseDuration(text);
     if (duration != null) return duration.inSeconds / 60;

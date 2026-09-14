@@ -1,3 +1,9 @@
+String formatPhone(String number) {
+  final digits = number.replaceAll(RegExp(r'\D'), '');
+  if (digits.length != 10) return number;
+  return [for (var i = 0; i < 10; i += 2) digits.substring(i, i + 2)].join(' ');
+}
+
 class LineInfo {
   const LineInfo({
     this.status,

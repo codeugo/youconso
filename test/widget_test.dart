@@ -63,6 +63,7 @@ void main() {
     expect(data.quota, '50 Go');
     expect(data.quotaNote, "Ajustable jusqu'à 50 Go");
     expect(data.ratio, closeTo(0.092, 0.001));
+    expect(data.remaining, '45,4 Go');
 
     final calls = france.subCategories[1];
     expect(calls.kind, ConsoKind.calls);

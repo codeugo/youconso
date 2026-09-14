@@ -14,17 +14,20 @@ class ConsoWidget : HomeWidgetProvider() {
         appWidgetIds: IntArray,
         widgetData: SharedPreferences,
     ) {
-        val views = RemoteViews(context.packageName, R.layout.conso_widget).apply {
-            setTextViewText(R.id.plan, widgetData.getString("plan", "YouConso"))
-            setTextViewText(R.id.used, widgetData.getString("used", "--"))
-            setTextViewText(R.id.quota, widgetData.getString("quota", ""))
-            setProgressBar(R.id.progress, 100, widgetData.getInt("progress", 0), false)
-            setTextViewText(R.id.time, widgetData.getString("time", "Ouvrir l'app pour actualiser"))
-            setOnClickPendingIntent(
-                R.id.root,
-                HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java),
-            )
+        val value = widgetData.getString("value", null)
+        val views = if (value == null) {
+            RemoteViews(context.packageName, R.layout.conso_widget_empty)
+        } else {
+            RemoteViews(context.packageName, R.layout.conso_widget).apply {
+                setTextViewText(R.id.title, widgetData.getString("title", ""))
+                setTextViewText(R.id.value, value)
+                setProgressBar(R.id.progress, 100, widgetData.getInt("progress", 0), false)
+            }
         }
+        views.setOnClickPendingIntent(
+            R.id.root,
+            HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java),
+        )
         for (id in appWidgetIds) appWidgetManager.updateAppWidget(id, views)
     }
 }

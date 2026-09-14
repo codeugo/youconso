@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } on ApiException catch (e) {
       if (e.sessionLost) rethrow;
     }
-    unawaited(updateConsoWidget(conso, info));
+    unawaited(updateConsoWidget(conso, number));
     return _LineData(conso, info);
   }
 
@@ -167,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (confirmed != true) return;
     await widget.api.logout();
+    await clearConsoWidget();
     if (!mounted) return;
     _goToLogin(null);
   }
@@ -250,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               items: [
                 for (final n in _numbers)
-                  DropdownMenuItem(value: n, child: Text(_formatPhone(n))),
+                  DropdownMenuItem(value: n, child: Text(formatPhone(n))),
               ],
               onChanged: (value) {
                 if (value == null || value == _selectedNumber) return;
@@ -360,12 +361,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-String _formatPhone(String number) {
-  final digits = number.replaceAll(RegExp(r'\D'), '');
-  if (digits.length != 10) return number;
-  return [for (var i = 0; i < 10; i += 2) digits.substring(i, i + 2)].join(' ');
-}
-
 Color? _operatorColor(String? operator) {
   final op = operator?.toLowerCase() ?? '';
   if (op.contains('sfr')) return const Color(0xFFD0021B);
@@ -438,7 +433,7 @@ class _LineHeader extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            _formatPhone(number),
+            formatPhone(number),
             style: theme.textTheme.headlineSmall?.copyWith(
               color: onBanner,
               fontWeight: FontWeight.bold,
