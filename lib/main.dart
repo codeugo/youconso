@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 
 import 'api/youprice_api.dart';
+import 'conso_widget.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'storage/secure_store.dart';
@@ -15,6 +16,7 @@ Future<void> main() async {
   await initializeDateFormatting('fr_FR');
   Intl.defaultLocale = 'fr_FR';
   final settings = await ThemeSettings.load();
+  await registerConsoWidget();
   runApp(YouConsoApp(api: YoupriceApi(SecureStore()), settings: settings));
 }
 

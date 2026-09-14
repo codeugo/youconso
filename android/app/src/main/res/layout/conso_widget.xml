@@ -38,20 +38,21 @@
         android:orientation="vertical">
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Reste"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/value"
+            android:id="@+id/used"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:maxLines="1"
             android:textColor="#3399FE"
             android:textSize="28sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/quota"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
 
         <ProgressBar
             android:id="@+id/progress"
@@ -62,6 +63,15 @@
             android:max="100"
             android:progressBackgroundTint="#33FFFFFF"
             android:progressTint="#3399FE" />
+
+        <TextView
+            android:id="@+id/time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:maxLines="1"
+            android:textColor="#99FFFFFF"
+            android:textSize="11sp" />
     </LinearLayout>
 
 </LinearLayout>
