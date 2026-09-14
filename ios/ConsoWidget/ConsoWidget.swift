@@ -100,11 +100,13 @@ private struct WidgetHeader: View {
       Image("WidgetLogo")
         .resizable()
         .frame(width: 20, height: 20)
+      // Plus petit que sur Android (14 sp) : le small iOS est étroit et le numéro
+      // de ligne doit tenir en entier. Se réduit encore si besoin plutôt que tronquer.
       Text(title)
-        .font(.system(size: 14, weight: .bold))
+        .font(.system(size: 12, weight: .semibold))
         .foregroundColor(.white)
         .lineLimit(1)
-        .truncationMode(.tail)
+        .minimumScaleFactor(0.75)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
