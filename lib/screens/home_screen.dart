@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../api/youprice_api.dart';
+import '../conso_widget.dart';
 import '../models/conso.dart';
 import '../models/invoice.dart';
 import '../models/line_info.dart';
@@ -97,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } on ApiException catch (e) {
       if (e.sessionLost) rethrow;
     }
+    unawaited(updateConsoWidget(conso, info));
     return _LineData(conso, info);
   }
 
