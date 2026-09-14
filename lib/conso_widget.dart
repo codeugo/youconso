@@ -9,14 +9,25 @@ import 'storage/secure_store.dart';
 
 const _keys = ['number', 'title', 'used', 'quota', 'progress', 'time'];
 
+/// Nom du widget : classe `ConsoWidget` sur Android, `kind` WidgetKit sur iOS.
+const _widgetName = 'ConsoWidget';
+
+/// App Group partagé entre l'app iOS et l'extension widget
+/// (ios/Runner/Runner.entitlements, ios/ConsoWidget/ConsoWidget.entitlements).
+const _appGroupId = 'group.fr.youconso.youconso';
+
+bool get _supported => Platform.isAndroid || Platform.isIOS;
+
 Future<void> registerConsoWidget() async {
   if (Platform.isAndroid) {
     await HomeWidget.registerInteractivityCallback(_refresh);
+  } else if (Platform.isIOS) {
+    await HomeWidget.setAppGroupId(_appGroupId);
   }
 }
 
 Future<void> updateConsoWidget(Conso conso, String number) async {
-  if (!Platform.isAndroid) return;
+  if (!_supported) return;
   final detail = conso.groups
       .where((g) => g.kind == ConsoKind.data)
       .expand((g) => g.withQuota)
@@ -35,16 +46,19 @@ Future<void> updateConsoWidget(Conso conso, String number) async {
     'time',
     'Actualisé à ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
   );
-  await HomeWidget.updateWidget(androidName: 'ConsoWidget');
+  await _reload();
 }
 
 Future<void> clearConsoWidget() async {
-  if (!Platform.isAndroid) return;
+  if (!_supported) return;
   for (final key in _keys) {
     await HomeWidget.saveWidgetData<String>(key, null);
   }
-  await HomeWidget.updateWidget(androidName: 'ConsoWidget');
+  await _reload();
 }
+
+Future<void> _reload() =>
+    HomeWidget.updateWidget(androidName: _widgetName, iOSName: _widgetName);
 
 @pragma('vm:entry-point')
 Future<void> _refresh(Uri? uri) async {
