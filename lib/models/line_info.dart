@@ -1,3 +1,5 @@
+import 'json.dart';
+
 String formatPhone(String number) {
   final digits = number.replaceAll(RegExp(r'\D'), '');
   if (digits.length != 10) return number;
@@ -19,20 +21,13 @@ class LineInfo {
   final String? simType;
   final bool has5G;
 
-  factory LineInfo.fromJson(Map json) {
-    String? text(String key) {
-      final s = json[key]?.toString().trim() ?? '';
-      return s.isEmpty ? null : s;
-    }
-
-    return LineInfo(
-      status: text('etatLigne'),
-      planName: text('ypProductName'),
-      operator: text('operateur'),
-      simType: text('typeSim'),
-      has5G: json['isOption5G'] == true,
-    );
-  }
+  factory LineInfo.fromJson(Map json) => LineInfo(
+    status: jsonTextOrNull(json['etatLigne']),
+    planName: jsonTextOrNull(json['ypProductName']),
+    operator: jsonTextOrNull(json['operateur']),
+    simType: jsonTextOrNull(json['typeSim']),
+    has5G: json['isOption5G'] == true,
+  );
 
   bool get isActive => status?.toLowerCase().startsWith('acti') ?? true;
 

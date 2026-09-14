@@ -14,7 +14,8 @@ import '../models/line_info.dart';
 import '../theme.dart';
 import '../widgets/conso_card.dart';
 import '../widgets/invoice_tile.dart';
-import 'login_screen.dart';
+import '../widgets/line_header.dart';
+import '../widgets/status_view.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.api});
@@ -32,10 +33,21 @@ class _LineData {
   final LineInfo? info;
 }
 
+/// Attend [future] sans propager son erreur : le [FutureBuilder] l'affiche
+/// déjà, et un [RefreshIndicator] n'a pas à la recevoir une seconde fois.
+Future<void> _settle(Future<Object?>? future) async {
+  try {
+    await future;
+  } catch (_) {}
+}
+
+// Perte de session : l'API a déjà basculé `session` sur « déconnecté », la
+// racine de l'app remplace cet écran au prochain rendu. Ici, on se contente
+// donc d'ignorer l'erreur, sans naviguer.
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
   bool _loading = true;
-  ApiException? _initError;
+  Object? _initError;
   String? _customerName;
   List<String> _numbers = const [];
   String? _selectedNumber;
@@ -71,12 +83,10 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       _reloadLine();
       _reloadInvoices();
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      if (e.sessionLost) {
-        _goToLogin(e.message);
-        return;
-      }
+    } catch (e) {
+      // Toute erreur, pas seulement ApiException : sinon l'écran resterait
+      // bloqué sur le chargement sans bouton « Réessayer ».
+      if (!mounted || (e is ApiException && e.sessionLost)) return;
       setState(() {
         _initError = e;
         _loading = false;
@@ -135,11 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _snack('Aucune application ne peut ouvrir ce PDF (${result.message}).');
       }
     } on ApiException catch (e) {
-      if (e.sessionLost) {
-        _goToLogin(e.message);
-        return;
-      }
-      _snack(e.message);
+      if (!e.sessionLost) _snack(e.message);
     } catch (e) {
       _snack('Impossible d\'ouvrir la facture : $e');
     } finally {
@@ -166,18 +172,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (confirmed != true) return;
-    await widget.api.logout();
     await clearConsoWidget();
-    if (!mounted) return;
-    _goToLogin(null);
-  }
-
-  void _goToLogin(String? message) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => LoginScreen(api: widget.api, message: message),
-      ),
-    );
+    await widget.api.logout();
   }
 
   @override
@@ -222,15 +218,16 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_initError != null) {
-      return _ErrorView(error: _initError!, onRetry: _init);
+    final initError = _initError;
+    if (initError != null) {
+      return StatusView.error(error: initError, onRetry: _init);
     }
     return IndexedStack(index: _tab, children: [_consoTab(), _invoicesTab()]);
   }
 
   Widget _consoTab() {
     if (_numbers.isEmpty) {
-      return const _EmptyView(
+      return const StatusView.empty(
         icon: Icons.sim_card_alert_outlined,
         text:
             'Aucune ligne active sur ce compte.\n'
@@ -262,21 +259,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () async {
+            onRefresh: () {
               _reloadLine();
-              await _lineFuture;
+              return _settle(_lineFuture);
             },
             child: FutureBuilder<_LineData>(
               future: _lineFuture,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  final error = snapshot.error!;
-                  if (error is ApiException && error.sessionLost) {
-                    WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _goToLogin(error.message),
-                    );
-                  }
-                  return _ErrorView(error: error, onRetry: _reloadLine);
+                  return StatusView.error(
+                    error: snapshot.error!,
+                    onRetry: _reloadLine,
+                  );
                 }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -286,10 +280,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                   children: [
-                    _LineHeader(number: _selectedNumber!, info: data.info),
+                    LineHeader(number: _selectedNumber!, info: data.info),
                     const SizedBox(height: 16),
                     if (groups.isEmpty)
-                      const _EmptyView(
+                      const StatusView.empty(
                         icon: Icons.hourglass_empty,
                         text: 'Aucune donnée de consommation pour le moment.',
                       )
@@ -314,28 +308,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _invoicesTab() {
     return RefreshIndicator(
-      onRefresh: () async {
+      onRefresh: () {
         _reloadInvoices();
-        await _invoicesFuture;
+        return _settle(_invoicesFuture);
       },
       child: FutureBuilder<List<Invoice>>(
         future: _invoicesFuture,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            final error = snapshot.error!;
-            if (error is ApiException && error.sessionLost) {
-              WidgetsBinding.instance.addPostFrameCallback(
-                (_) => _goToLogin(error.message),
-              );
-            }
-            return _ErrorView(error: error, onRetry: _reloadInvoices);
+            return StatusView.error(
+              error: snapshot.error!,
+              onRetry: _reloadInvoices,
+            );
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
           final invoices = snapshot.data!;
           if (invoices.isEmpty) {
-            return const _EmptyView(
+            return const StatusView.empty(
               icon: Icons.receipt_long_outlined,
               text: 'Aucune facture pour le moment.',
             );
@@ -357,177 +348,6 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
-    );
-  }
-}
-
-Color? _operatorColor(String? operator) {
-  final op = operator?.toLowerCase() ?? '';
-  if (op.contains('sfr')) return const Color(0xFFD0021B);
-  if (op.contains('orange')) return const Color(0xFFFF7900);
-  if (op.contains('bouygues') || op == 'bt') return const Color(0xFF1FA2E0);
-  return null;
-}
-
-class _LineHeader extends StatelessWidget {
-  const _LineHeader({required this.number, this.info});
-
-  final String number;
-  final LineInfo? info;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final info = this.info;
-    final active = info?.isActive ?? true;
-    const onBanner = Colors.white;
-    final chips = <(String, Color?)>[
-      if (info?.operator != null)
-        ('Réseau ${info!.operator}', _operatorColor(info.operator)),
-      if (info?.simType != null)
-        (info!.simType!.toUpperCase() == 'ESIM' ? 'eSIM' : 'SIM', null),
-      if (info?.has5G ?? false) ('5G', null),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [youpriceBlue, youpriceBlue.withValues(alpha: 0.78)],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  info?.planLabel != null
-                      ? 'Forfait ${info!.planLabel}'
-                      : 'Ma ligne',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: onBanner,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (info?.status != null)
-                Tooltip(
-                  message: info!.status!,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: active
-                          ? const Color(0xFF4CD964)
-                          : const Color(0xFFFF3B30),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            formatPhone(number),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: onBanner,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1,
-            ),
-          ),
-          if (chips.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                for (final (label, color) in chips)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color,
-                      border: color == null
-                          ? Border.all(color: onBanner.withValues(alpha: 0.5))
-                          : null,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      label,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: onBanner,
-                        fontWeight: color != null ? FontWeight.w600 : null,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.error, required this.onRetry});
-
-  final Object error;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final error = this.error;
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 48),
-        Icon(
-          Icons.cloud_off,
-          size: 56,
-          color: Theme.of(context).colorScheme.error,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          error is ApiException ? error.message : '$error',
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: FilledButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Réessayer'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _EmptyView extends StatelessWidget {
-  const _EmptyView({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 48),
-        Icon(icon, size: 56, color: Theme.of(context).colorScheme.outline),
-        const SizedBox(height: 16),
-        Text(text, textAlign: TextAlign.center),
-      ],
     );
   }
 }

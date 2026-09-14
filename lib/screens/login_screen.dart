@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../api/youprice_api.dart';
-import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.api, this.message});
 
   final YoupriceApi api;
+
+  /// Motif affiché en tête (session expirée, par exemple).
   final String? message;
 
   @override
@@ -45,12 +46,8 @@ class _LoginScreenState extends State<LoginScreen> {
       ..showSnackBar(SnackBar(content: Text(text)));
   }
 
-  void _goHome() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => HomeScreen(api: widget.api)),
-    );
-  }
-
+  /// En cas de succès, l'API passe la session à « active » et la racine de
+  /// l'app affiche l'accueil : rien à naviguer ici.
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _busy = true);
@@ -61,18 +58,13 @@ class _LoginScreenState extends State<LoginScreen> {
           _password.text,
           _code.text.trim(),
         );
-        if (mounted) _goHome();
         return;
       }
-      final codeRequired = await widget.api.login(
+      final result = await widget.api.login(
         _username.text.trim(),
         _password.text,
       );
-      if (!mounted) return;
-      if (!codeRequired) {
-        _goHome();
-        return;
-      }
+      if (!mounted || result == LoginResult.loggedIn) return;
       setState(() {
         _codeStep = true;
         _info =
