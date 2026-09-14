@@ -1,0 +1,38 @@
+class LineInfo {
+  const LineInfo({
+    this.status,
+    this.planName,
+    this.operator,
+    this.simType,
+    this.has5G = false,
+  });
+
+  final String? status;
+  final String? planName;
+  final String? operator;
+  final String? simType;
+  final bool has5G;
+
+  factory LineInfo.fromJson(Map json) {
+    String? text(String key) {
+      final s = json[key]?.toString().trim() ?? '';
+      return s.isEmpty ? null : s;
+    }
+
+    return LineInfo(
+      status: text('etatLigne'),
+      planName: text('ypProductName'),
+      operator: text('operateur'),
+      simType: text('typeSim'),
+      has5G: json['isOption5G'] == true,
+    );
+  }
+
+  bool get isActive => status?.toLowerCase().startsWith('acti') ?? true;
+
+  String? get planLabel => planName?.replaceAllMapped(
+    RegExp(r'^(\d+)\s*([KMGT]?o)$', caseSensitive: false),
+    (m) =>
+        '${m[1]} ${m[2]![0].toUpperCase()}${m[2]!.substring(1).toLowerCase()}',
+  );
+}
