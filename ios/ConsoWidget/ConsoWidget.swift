@@ -3,9 +3,9 @@ import WidgetKit
 
 // Miroir du widget Android (android/app/src/main/res/layout/conso_widget*.xml).
 // Les données sont écrites par lib/conso_widget.dart via home_widget dans les
-// UserDefaults du groupe d'apps, avec les mêmes clés qu'Android.
+// UserDefaults du groupe d'apps (Shared/AppGroup.swift), avec les mêmes clés qu'Android.
 
-private let appGroupId = "group.fr.youconso.youconso"
+private let appGroupId = AppGroup.identifier
 private let youpriceBlue = Color(red: 0x33 / 255, green: 0x99 / 255, blue: 0xFE / 255)
 private let backgroundTop = Color(red: 0x2C / 255, green: 0x36 / 255, blue: 0x44 / 255)
 private let backgroundBottom = Color(red: 0x1A / 255, green: 0x20 / 255, blue: 0x29 / 255)

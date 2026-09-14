@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'api/youprice_api.dart';
@@ -14,7 +15,11 @@ const _widgetName = 'ConsoWidget';
 
 /// App Group partagé entre l'app iOS et l'extension widget
 /// (ios/Runner/Runner.entitlements, ios/ConsoWidget/ConsoWidget.entitlements).
+/// Valeur de repli : le natif renvoie l'identifiant réel, qui peut être renommé
+/// par un outil de sideload (voir ios/Shared/AppGroup.swift).
 const _appGroupId = 'group.fr.youconso.youconso';
+
+const _appGroupChannel = MethodChannel('fr.youconso.youconso/app_group');
 
 bool get _supported => Platform.isAndroid || Platform.isIOS;
 
@@ -22,7 +27,15 @@ Future<void> registerConsoWidget() async {
   if (Platform.isAndroid) {
     await HomeWidget.registerInteractivityCallback(_refresh);
   } else if (Platform.isIOS) {
-    await HomeWidget.setAppGroupId(_appGroupId);
+    String? groupId;
+    try {
+      groupId = await _appGroupChannel.invokeMethod<String>('appGroupId');
+    } on PlatformException {
+      groupId = null;
+    } on MissingPluginException {
+      groupId = null;
+    }
+    await HomeWidget.setAppGroupId(groupId ?? _appGroupId);
   }
 }
 

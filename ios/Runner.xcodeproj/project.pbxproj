@@ -21,6 +21,8 @@
 		C0500000000000000000000A /* ConsoWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C05000000000000000000002 /* ConsoWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C05000000000000000000017 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C05000000000000000000016 /* WidgetKit.framework */; };
 		C05000000000000000000019 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C05000000000000000000018 /* SwiftUI.framework */; };
+		C0500000000000000000001C /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0500000000000000000001B /* AppGroup.swift */; };
+		C0500000000000000000001D /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0500000000000000000001B /* AppGroup.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +92,7 @@
 		C05000000000000000000009 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		C05000000000000000000016 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		C05000000000000000000018 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		C0500000000000000000001B /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +142,7 @@
 				9740EEB11CF90186004384FC /* Flutter */,
 				97C146F01CF9000F007C117D /* Runner */,
 				C0500000000000000000000F /* ConsoWidget */,
+				C0500000000000000000001E /* Shared */,
 				C0500000000000000000001A /* Frameworks */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
@@ -164,6 +168,14 @@
 				C05000000000000000000008 /* ConsoWidget.entitlements */,
 			);
 			path = ConsoWidget;
+			sourceTree = "<group>";
+		};
+		C0500000000000000000001E /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				C0500000000000000000001B /* AppGroup.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		C0500000000000000000001A /* Frameworks */ = {
@@ -379,6 +391,7 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
+				C0500000000000000000001C /* AppGroup.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -387,6 +400,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C05000000000000000000004 /* ConsoWidget.swift in Sources */,
+				C0500000000000000000001D /* AppGroup.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

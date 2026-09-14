@@ -17,4 +17,6 @@ partagent les mêmes données, écrites par `lib/conso_widget.dart`.
 Sur iOS, l'app et l'extension communiquent via l'App Group
 `group.fr.youconso.youconso` : pour un build signé, activer la capability
 « App Groups » avec cet identifiant sur les deux cibles (`Runner` et
-`ConsoWidgetExtension`) dans le compte développeur Apple.
+`ConsoWidgetExtension`) dans le compte développeur Apple. Les outils de
+sideload renomment ce groupe : `ios/Shared/AppGroup.swift` lit l'identifiant
+réel dans le profil de provisioning embarqué, des deux côtés.
