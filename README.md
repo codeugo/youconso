@@ -2,6 +2,8 @@
 
 Application Flutter pour consulter sa consommation et ses factures Youprice.
 
+Les builds (APK Android et IPA iOS) sont disponibles dans les releases GitHub.
+
 ## Environnement de dev
 
 ```
