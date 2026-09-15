@@ -18,6 +18,16 @@ http.Response json(Object? body, [int status = 200]) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
+/// Unsigned JWT whose `exp` is [expiry].
+String jwt(DateTime expiry) {
+  String enc(Object o) =>
+      base64Url.encode(utf8.encode(jsonEncode(o))).replaceAll('=', '');
+  final exp = expiry.millisecondsSinceEpoch ~/ 1000;
+  return '${enc({'alg': 'RS256'})}.${enc({'exp': exp})}.sig';
+}
+
+DateTime hoursFromNow(int hours) => DateTime.now().add(Duration(hours: hours));
+
 const storedSession = {
   'user_token': 'old-token',
   'username': 'jean@example.com',
@@ -29,7 +39,11 @@ void main() {
   late List<http.Request> requests;
   late SecureStore store;
 
-  YoupriceApi api(Handler handler, {Map<String, String> stored = const {}}) {
+  YoupriceApi api(
+    Handler handler, {
+    Map<String, String> stored = const {},
+    bool silentRelogin = true,
+  }) {
     FlutterSecureStorage.setMockInitialValues({...stored});
     store = SecureStore();
     return YoupriceApi(
@@ -38,6 +52,7 @@ void main() {
         requests.add(request);
         return handler(request);
       }),
+      silentRelogin: silentRelogin,
     );
   }
 
@@ -266,6 +281,78 @@ void main() {
       });
     }
 
+    test(
+      'jeton dont le exp est passé : reconnexion avant la requête',
+      () async {
+        final client = api(
+          (r) async => r.url.path.endsWith('/Auth/authenticate')
+              ? json({'access_token': 'new-token'})
+              : json([phoneNumber]),
+          stored: {...storedSession, 'user_token': jwt(hoursFromNow(-1))},
+        );
+        await client.init();
+
+        expect(await client.activeNumbers(), [phoneNumber]);
+        expect(requests.map((r) => r.url.path.split('/').last), [
+          'authenticate',
+          'getActiveNumero',
+        ]);
+        expect(requests.last.headers['authorization'], 'Bearer new-token');
+        expect(await store.token, 'new-token');
+      },
+    );
+
+    test('jeton dont le exp est à venir : requête directe', () async {
+      final client = api(
+        (r) async => json([phoneNumber]),
+        stored: {...storedSession, 'user_token': jwt(hoursFromNow(3))},
+      );
+      await client.init();
+      expect(await client.activeNumbers(), [phoneNumber]);
+      expect(requests.single.url.path, endsWith('/msisdn/getActiveNumero'));
+    });
+
+    test('sans reconnexion silencieuse : 401 sans perdre la session', () async {
+      final client = api(
+        (r) async => http.Response('', 401),
+        stored: storedSession,
+        silentRelogin: false,
+      );
+      await client.init();
+      await expectLater(
+        client.activeNumbers(),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.sessionLost, 'sessionLost', isFalse)
+              .having((e) => e.message, 'message', contains('expirée')),
+        ),
+      );
+      expect(requests.single.url.path, endsWith('/msisdn/getActiveNumero'));
+      expect(await store.token, 'old-token');
+      expect(client.session.value.active, isTrue);
+    });
+
+    test('sans reconnexion silencieuse : jeton expiré, aucun appel', () async {
+      final client = api(
+        (r) async => json([phoneNumber]),
+        stored: {...storedSession, 'user_token': jwt(hoursFromNow(-1))},
+        silentRelogin: false,
+      );
+      await client.init();
+      await expectLater(
+        client.activeNumbers(),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.sessionLost,
+            'sessionLost',
+            isFalse,
+          ),
+        ),
+      );
+      expect(requests, isEmpty);
+      expect(client.session.value.active, isTrue);
+    });
+
     test('erreur HTTP : message sans perdre la session', () async {
       final client = api(
         (r) async => http.Response('', 503),
@@ -298,6 +385,32 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('tokenExpired', () {
+    final now = DateTime(2026, 9, 15, 20);
+
+    test('marge de 30 s', () {
+      expect(
+        YoupriceApi.tokenExpired(
+          jwt(now.add(const Duration(minutes: 1))),
+          now: now,
+        ),
+        isFalse,
+      );
+      expect(
+        YoupriceApi.tokenExpired(
+          jwt(now.add(const Duration(seconds: 10))),
+          now: now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('jeton illisible : considéré valide, le serveur décide', () {
+      expect(YoupriceApi.tokenExpired('old-token', now: now), isFalse);
+      expect(YoupriceApi.tokenExpired('a.b.c', now: now), isFalse);
     });
   });
 

@@ -70,13 +70,17 @@ Future<void> clearConsoWidget() async {
 Future<void> _reload() =>
     HomeWidget.updateWidget(androidName: _widgetName, iOSName: _widgetName);
 
+/// Background refresh (Android, every 30 min). Never logs in again: each
+/// login triggers a "Nouvelle connexion" mail, so once the 4-hour token has
+/// expired the widget keeps its last data, without any network call, until
+/// the app is opened.
 @pragma('vm:entry-point')
 Future<void> _refresh(Uri? uri) async {
   final number = await HomeWidget.getWidgetData<String>('number');
   if (number == null) return;
   try {
     await updateConsoWidget(
-      await YoupriceApi(SecureStore()).conso(number),
+      await YoupriceApi(SecureStore(), silentRelogin: false).conso(number),
       number,
     );
   } on ApiException catch (e) {

@@ -35,7 +35,10 @@ class Session {
 }
 
 class YoupriceApi {
-  YoupriceApi(this._store, {http.Client? client})
+  /// With [silentRelogin] off, an expired token throws instead of logging in
+  /// again: Youprice mails "Nouvelle connexion" on every authentication, so
+  /// background refreshes (home widget) must not trigger one.
+  YoupriceApi(this._store, {http.Client? client, this.silentRelogin = true})
     : _client = client ?? http.Client();
 
   static const baseUrl = 'https://api.youprice.fr/Vitrine';
@@ -47,6 +50,7 @@ class YoupriceApi {
 
   final SecureStore _store;
   final http.Client _client;
+  final bool silentRelogin;
 
   /// Single source of truth for the logged-in state.
   final session = ValueNotifier<Session>(const Session.inactive());
@@ -227,9 +231,16 @@ class YoupriceApi {
     Future<http.Response> Function(Map<String, String> headers) send, {
     bool retry = true,
   }) async {
+    const expired = 'Session expirée, veuillez vous reconnecter.';
     final token = await _store.token;
     if (token == null || token.isEmpty) {
       await _endSession('Vous n\'êtes pas connecté.');
+    }
+    if (retry && tokenExpired(token)) {
+      // Known to be expired: log in again first instead of wasting a 401.
+      if (!silentRelogin) throw ApiException(expired);
+      if (!await _silentRelogin()) await _endSession(expired);
+      return _authedResponse(send, retry: false);
     }
     final response = await _send(
       () => send({
@@ -239,15 +250,42 @@ class YoupriceApi {
       }),
     );
     if (response.statusCode == 401 || response.statusCode == 403) {
+      if (!silentRelogin) throw ApiException(expired);
       if (retry && await _silentRelogin()) {
         return _authedResponse(send, retry: false);
       }
-      await _endSession('Session expirée, veuillez vous reconnecter.');
+      await _endSession(expired);
     }
     if (response.statusCode >= 400) {
       throw ApiException(_messageOf(_decode(response), response.statusCode));
     }
     return response;
+  }
+
+  /// Whether the JWT's `exp` claim is past (with a small margin). Tokens
+  /// last 4 hours. Unreadable tokens count as valid: the server decides.
+  @visibleForTesting
+  static bool tokenExpired(String token, {DateTime? now}) {
+    final expiry = _tokenExpiry(token);
+    if (expiry == null) return false;
+    return (now ?? DateTime.now())
+        .add(const Duration(seconds: 30))
+        .isAfter(expiry);
+  }
+
+  static DateTime? _tokenExpiry(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      final exp = payload is Map ? payload['exp'] : null;
+      if (exp is! num) return null;
+      return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000);
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<Never> _endSession(String message) async {
