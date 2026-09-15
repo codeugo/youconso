@@ -104,6 +104,7 @@ void main() {
       expect(withStatus('Impayé').isPaid, isFalse);
       expect(withStatus('Impayée').isPaid, isFalse);
       expect(withStatus('Non payée').isPaid, isFalse);
+      expect(withStatus('Non-payée').isPaid, isFalse);
       expect(withStatus('Payée partiellement').isPaid, isFalse);
     });
 

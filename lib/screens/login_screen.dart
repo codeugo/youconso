@@ -6,8 +6,6 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.api, this.message});
 
   final YoupriceApi api;
-
-  /// Motif affiché en tête (session expirée, par exemple).
   final String? message;
 
   @override
@@ -46,8 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ..showSnackBar(SnackBar(content: Text(text)));
   }
 
-  /// En cas de succès, l'API passe la session à « active » et la racine de
-  /// l'app affiche l'accueil : rien à naviguer ici.
+  // On success the root screen switches to home by itself.
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _busy = true);

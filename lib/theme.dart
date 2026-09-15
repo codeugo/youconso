@@ -59,8 +59,7 @@ Future<void> showThemeDialog(BuildContext context) {
   return showDialog<void>(
     context: context,
     builder: (context) {
-      // ThemeScope est un InheritedNotifier : ce builder se reconstruit de
-      // lui-même à chaque changement de mode, sans ValueListenableBuilder.
+      // ThemeScope is an InheritedNotifier: this builder rebuilds on change.
       final settings = ThemeScope.of(context);
       return AlertDialog(
         title: const Text('Thème'),

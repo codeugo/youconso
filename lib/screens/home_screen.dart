@@ -33,17 +33,14 @@ class _LineData {
   final LineInfo? info;
 }
 
-/// Attend [future] sans propager son erreur : le [FutureBuilder] l'affiche
-/// déjà, et un [RefreshIndicator] n'a pas à la recevoir une seconde fois.
+/// Awaits [future] swallowing its error, already shown by the FutureBuilder.
 Future<void> _settle(Future<Object?>? future) async {
   try {
     await future;
   } catch (_) {}
 }
 
-// Perte de session : l'API a déjà basculé `session` sur « déconnecté », la
-// racine de l'app remplace cet écran au prochain rendu. Ici, on se contente
-// donc d'ignorer l'erreur, sans naviguer.
+// On session loss the root screen replaces this one; errors are ignored here.
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
   bool _loading = true;
@@ -84,8 +81,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _reloadLine();
       _reloadInvoices();
     } catch (e) {
-      // Toute erreur, pas seulement ApiException : sinon l'écran resterait
-      // bloqué sur le chargement sans bouton « Réessayer ».
       if (!mounted || (e is ApiException && e.sessionLost)) return;
       setState(() {
         _initError = e;
@@ -172,8 +167,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (confirmed != true) return;
-    await clearConsoWidget();
-    await widget.api.logout();
+    try {
+      await clearConsoWidget();
+    } finally {
+      await widget.api.logout();
+    }
   }
 
   @override

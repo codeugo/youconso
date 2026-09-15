@@ -1,6 +1,3 @@
-// Parcours complets à travers RootScreen : connexion, accueil, session
-// expirée, déconnexion. L'API est réelle, seul le transport HTTP est simulé.
-
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -25,7 +22,6 @@ http.Response json(Object? body, [int status = 200]) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
-/// Réponses d'un compte en règle, une fois le jeton accepté.
 Future<http.Response> happyBackend(http.Request request) async {
   final path = request.url.path.split('/').last;
   return switch (path) {

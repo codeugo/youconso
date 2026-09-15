@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/youprice_api.dart';
 
-/// Écran d'état plein cadre : liste vide, ou erreur avec bouton « Réessayer ».
-///
-/// C'est une [ListView] pour rester compatible avec un [RefreshIndicator].
+/// Empty or error state. A [ListView] so it works inside a [RefreshIndicator].
 class StatusView extends StatelessWidget {
   const StatusView.empty({super.key, required this.icon, required this.text})
     : onRetry = null;

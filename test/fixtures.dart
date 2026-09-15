@@ -1,5 +1,4 @@
-/// Réponses Youprice réelles (anonymisées) partagées entre les tests.
-library;
+// Real (anonymised) Youprice responses.
 
 const realConso = {
   'categories': [

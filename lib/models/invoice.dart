@@ -28,11 +28,11 @@ class Invoice {
 
   bool get isPaid {
     final s = status?.toLowerCase() ?? '';
-    // « Impayé » contient « pay » : les statuts négatifs se testent en premier.
+    // "Impayé" contains "pay": negative statuses first.
     if (s.contains('impay') || s.contains('non pay') || s.contains('partiel')) {
       return false;
     }
-    if (s.contains('pay')) return true;
+    if (s.contains('pay') && !s.contains('non')) return true;
     return remaining != null && remaining! <= 0;
   }
 }

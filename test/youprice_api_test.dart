@@ -18,7 +18,6 @@ http.Response json(Object? body, [int status = 200]) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
-/// Session enregistrée telle que la laisserait une connexion réussie.
 const storedSession = {
   'user_token': 'old-token',
   'username': 'jean@example.com',
@@ -169,8 +168,8 @@ void main() {
 
     test('sans jeton : non connecté', () async {
       final client = api((r) async => json([]));
-      expect(
-        () => client.activeNumbers(),
+      await expectLater(
+        client.activeNumbers(),
         throwsA(
           isA<ApiException>().having((e) => e.sessionLost, 'sessionLost', true),
         ),
@@ -206,6 +205,32 @@ void main() {
         expect(client.session.value.active, isTrue);
       },
     );
+
+    test('jetons expirés en parallèle : une seule reconnexion', () async {
+      final client = api((r) async {
+        if (r.url.path.endsWith('/Auth/authenticate')) {
+          return json({'access_token': 'new-token'});
+        }
+        return r.headers['authorization'] == 'Bearer new-token'
+            ? json([phoneNumber])
+            : http.Response('', 401);
+      }, stored: storedSession);
+      await client.init();
+
+      final results = await Future.wait([
+        client.activeNumbers(),
+        client.activeNumbers(),
+      ]);
+      expect(results, [
+        [phoneNumber],
+        [phoneNumber],
+      ]);
+      expect(
+        requests.where((r) => r.url.path.endsWith('/Auth/authenticate')),
+        hasLength(1),
+      );
+      expect(client.session.value.active, isTrue);
+    });
 
     for (final (label, authResponse) in [
       ('identifiants refusés', http.Response('', 401)),

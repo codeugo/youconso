@@ -15,8 +15,7 @@ class ApiException implements Exception {
 
   final String message;
 
-  /// La session a été effacée : l'appelant n'a rien à faire, la racine de
-  /// l'app bascule d'elle-même sur l'écran de connexion via [YoupriceApi.session].
+  /// Session cleared; [YoupriceApi.session] already switched to inactive.
   final bool sessionLost;
 
   @override
@@ -25,14 +24,13 @@ class ApiException implements Exception {
 
 enum LoginResult { loggedIn, codeRequired }
 
-/// État de session observé par l'interface.
 class Session {
   const Session.active() : active = true, message = null;
   const Session.inactive({this.message}) : active = false;
 
   final bool active;
 
-  /// Motif de la déconnexion à afficher sur l'écran de connexion, s'il y en a un.
+  /// Reason shown on the login screen, if any.
   final String? message;
 }
 
@@ -50,16 +48,17 @@ class YoupriceApi {
   final SecureStore _store;
   final http.Client _client;
 
-  /// Seul point de vérité sur l'état connecté / déconnecté. Renseigné par
-  /// [init], puis mis à jour à chaque connexion, déconnexion ou session perdue.
+  /// Single source of truth for the logged-in state.
   final session = ValueNotifier<Session>(const Session.inactive());
 
-  /// Lit la session enregistrée. À appeler une fois avant d'afficher l'app.
+  /// Loads the stored session. Unreadable storage leaves it inactive.
   Future<void> init() async {
-    final token = await _store.token;
-    if (token != null && token.isNotEmpty) {
-      session.value = const Session.active();
-    }
+    try {
+      final token = await _store.token;
+      if (token != null && token.isNotEmpty) {
+        session.value = const Session.active();
+      }
+    } catch (_) {}
   }
 
   Future<void> logout() async {
@@ -200,10 +199,13 @@ class YoupriceApi {
     return true;
   }
 
-  /// Reconnexion avec les identifiants enregistrés quand le jeton a expiré.
-  /// Si Youprice réclame un code de vérification, on abandonne : la session
-  /// sera effacée et l'utilisateur repassera par l'écran de connexion.
-  Future<bool> _silentRelogin() async {
+  /// Concurrent 401s share one relogin attempt.
+  Future<bool> _silentRelogin() =>
+      _relogin ??= _doSilentRelogin().whenComplete(() => _relogin = null);
+
+  Future<bool>? _relogin;
+
+  Future<bool> _doSilentRelogin() async {
     final username = await _store.username;
     final password = await _store.password;
     if (username == null || password == null) return false;

@@ -62,9 +62,7 @@ class YouConsoApp extends StatelessWidget {
   }
 }
 
-/// Affiche l'accueil ou la connexion selon [YoupriceApi.session]. Les écrans
-/// n'ont donc jamais à naviguer l'un vers l'autre : connexion, déconnexion et
-/// session expirée passent toutes par ce même état.
+/// Shows home or login depending on [YoupriceApi.session].
 class RootScreen extends StatelessWidget {
   const RootScreen({super.key, required this.api});
 

@@ -9,9 +9,7 @@ class Conso {
     jsonList(json is Map ? json['categories'] : null, ConsoCategory.fromJson),
   );
 
-  /// Détails regroupés par sous-catégorie (Internet, Appels, SMS…), toutes
-  /// zones confondues : la carte « Internet mobile » montre la France et
-  /// l'international ensemble.
+  /// Details grouped by sub-category, France and international together.
   late final List<ConsoGroup> groups = _groupsOf(categories);
 
   static List<ConsoGroup> _groupsOf(List<ConsoCategory> categories) {
@@ -89,7 +87,7 @@ class ConsoSubCategory {
 
   factory ConsoSubCategory.fromJson(Map json) => ConsoSubCategory(
     label: jsonText(json['libelle']),
-    // « detais » (sic) : c'est bien la clé renvoyée par l'API.
+    // "detais" (sic) is the actual API key.
     details: jsonList(json['detais'], ConsoDetail.fromJson),
   );
 
@@ -132,7 +130,6 @@ class ConsoDetail {
 
   String get displayValue => _prettify(value);
 
-  /// Quantité du forfait (« 50 Go », « 2 h 00 min »), sans la mention qui suit.
   String? get quota {
     if (!hasQuota) return null;
     if (_parseDuration(refValue) != null) return _prettify(refValue);
@@ -140,7 +137,6 @@ class ConsoDetail {
     return _prettify(match?.group(0) ?? refValue);
   }
 
-  /// Mention qui suit la quantité (« Ajustable jusqu'à 50 Go »), s'il y en a une.
   String? get quotaNote {
     if (!hasQuota || _parseDuration(refValue) != null) return null;
     final match = _quantityRe.firstMatch(refValue);

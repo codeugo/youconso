@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/line_info.dart';
 import '../theme.dart';
 
-/// Bandeau bleu en tête de l'onglet Conso : forfait, numéro, réseau, SIM, 5G.
 class LineHeader extends StatelessWidget {
   const LineHeader({super.key, required this.number, this.info});
 
