@@ -1,5 +1,9 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// Session data in the platform secure storage (Keychain / Keystore).
+///
+/// The password is kept as-is: the Youprice API has no refresh token, so a
+/// silent relogin is the only way to renew an expired session.
 class SecureStore {
   static const _storage = FlutterSecureStorage();
   static const _kToken = 'user_token';
