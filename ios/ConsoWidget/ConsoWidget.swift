@@ -1,9 +1,7 @@
 import SwiftUI
 import WidgetKit
 
-// Miroir du widget Android (android/app/src/main/res/layout/conso_widget*.xml).
-// Les données sont écrites par lib/conso_widget.dart via home_widget dans les
-// UserDefaults du groupe d'apps (Shared/AppGroup.swift), avec les mêmes clés qu'Android.
+// Mirrors the Android widget; data written by lib/conso_widget.dart, same keys.
 
 private let appGroupId = AppGroup.identifier
 private let youpriceBlue = Color(red: 0x33 / 255, green: 0x99 / 255, blue: 0xFE / 255)
@@ -17,8 +15,7 @@ struct ConsoData {
   let progress: Int
   let time: String
 
-  /// `nil` quand l'utilisateur n'est pas identifié (clé "used" absente), comme
-  /// `conso_widget_empty.xml` côté Android.
+  /// `nil` when logged out ("used" key absent).
   static func load() -> ConsoData? {
     guard let prefs = UserDefaults(suiteName: appGroupId),
       let used = prefs.string(forKey: "used")
@@ -50,14 +47,12 @@ struct ConsoProvider: TimelineProvider {
   }
 
   func getSnapshot(in context: Context, completion: @escaping (ConsoEntry) -> Void) {
-    // Dans la galerie de widgets, on montre un aperçu rempli (previewLayout Android).
     let data = ConsoData.load() ?? (context.isPreview ? .preview : nil)
     completion(ConsoEntry(date: Date(), data: data))
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<ConsoEntry>) -> Void) {
-    // Le contenu ne change que lorsque l'app écrit de nouvelles données et appelle
-    // HomeWidget.updateWidget (WidgetCenter.reloadTimelines), pas besoin de rafraîchir seul.
+    // The app reloads the timeline itself after writing new data.
     let entry = ConsoEntry(date: Date(), data: ConsoData.load())
     completion(Timeline(entries: [entry], policy: .never))
   }
@@ -100,8 +95,7 @@ private struct WidgetHeader: View {
       Image("WidgetLogo")
         .resizable()
         .frame(width: 20, height: 20)
-      // Plus petit que sur Android (14 sp) : le small iOS est étroit et le numéro
-      // de ligne doit tenir en entier. Se réduit encore si besoin plutôt que tronquer.
+      // Smaller than Android so the whole number fits in the small widget.
       Text(title)
         .font(.system(size: 12, weight: .semibold))
         .foregroundColor(.white)
@@ -154,8 +148,7 @@ private struct ProgressBar: View {
 }
 
 extension View {
-  /// iOS 17 impose `containerBackground` pour le fond d'un widget ; avant, un
-  /// simple `background` suffit.
+  /// iOS 17 requires `containerBackground`.
   @ViewBuilder
   fileprivate func widgetBackground<Background: View>(_ background: Background) -> some View {
     if #available(iOSApplicationExtension 17.0, *) {
@@ -168,7 +161,7 @@ extension View {
 
 @main
 struct ConsoWidget: Widget {
-  // Doit correspondre au `iOSName` passé à HomeWidget.updateWidget côté Dart.
+  // Must match `iOSName` on the Dart side.
   let kind = "ConsoWidget"
 
   var body: some WidgetConfiguration {

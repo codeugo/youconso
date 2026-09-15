@@ -1,12 +1,6 @@
 import Foundation
 
-/// Identifiant de l'App Group partagé entre l'app et l'extension widget.
-///
-/// Compilé dans les deux cibles (Runner et ConsoWidgetExtension). Les outils de
-/// sideload (AltStore, Sideloadly…) renomment les groupes d'apps en y ajoutant le
-/// Team ID : on lit donc l'identifiant réel dans le profil de provisioning embarqué
-/// et on retombe sur la valeur des entitlements du dépôt (build App Store, sans
-/// profil embarqué).
+/// Sideload tools rename app groups, so read the real id from the embedded profile.
 enum AppGroup {
   static let fallback = "group.fr.youconso.youconso"
 

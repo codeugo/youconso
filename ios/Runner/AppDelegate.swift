@@ -13,8 +13,7 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
-    // Expose au Dart l'identifiant réel de l'App Group (voir Shared/AppGroup.swift),
-    // pour que home_widget écrive là où l'extension widget lit.
+    // Lets home_widget write where the widget extension reads.
     let channel = FlutterMethodChannel(
       name: "fr.youconso.youconso/app_group",
       binaryMessenger: engineBridge.applicationRegistrar.messenger())

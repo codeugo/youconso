@@ -25,8 +25,6 @@ android {
         applicationId = "fr.youconso.youconso"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Version tirée de pubspec.yaml. Avec --split-per-abi, Flutter ajoute
-        // 1000 * ABI_VERSION au versionCode de chaque APK.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
