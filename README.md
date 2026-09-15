@@ -1,3 +1,5 @@
+![YouConso](youconso-banner.png)
+
 # YouConso
 
 Application Flutter pour consulter sa consommation et ses factures Youprice.
