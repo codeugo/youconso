@@ -1,13 +1,18 @@
+import 'json.dart';
+
 class Conso {
-  const Conso(this.categories);
+  Conso(this.categories);
 
   final List<ConsoCategory> categories;
 
   factory Conso.fromJson(dynamic json) => Conso(
-    _mapList(json is Map ? json['categories'] : null, ConsoCategory.fromJson),
+    jsonList(json is Map ? json['categories'] : null, ConsoCategory.fromJson),
   );
 
-  List<ConsoGroup> get groups {
+  /// Details grouped by sub-category, France and international together.
+  late final List<ConsoGroup> groups = _groupsOf(categories);
+
+  static List<ConsoGroup> _groupsOf(List<ConsoCategory> categories) {
     final groups = <String, ConsoGroup>{};
     for (final category in categories) {
       for (final sub in category.subCategories) {
@@ -61,8 +66,8 @@ class ConsoCategory {
   final List<ConsoSubCategory> subCategories;
 
   factory ConsoCategory.fromJson(Map json) => ConsoCategory(
-    label: _text(json['libelle']),
-    subCategories: _mapList(json['sousCategories'], ConsoSubCategory.fromJson),
+    label: jsonText(json['libelle']),
+    subCategories: jsonList(json['sousCategories'], ConsoSubCategory.fromJson),
   );
 
   bool get isInternational {
@@ -81,8 +86,9 @@ class ConsoSubCategory {
   final List<ConsoDetail> details;
 
   factory ConsoSubCategory.fromJson(Map json) => ConsoSubCategory(
-    label: _text(json['libelle']),
-    details: _mapList(json['detais'], ConsoDetail.fromJson),
+    label: jsonText(json['libelle']),
+    // "detais" (sic) is the actual API key.
+    details: jsonList(json['detais'], ConsoDetail.fromJson),
   );
 
   ConsoKind get kind {
@@ -114,10 +120,10 @@ class ConsoDetail {
   final String refValue;
 
   factory ConsoDetail.fromJson(Map json) => ConsoDetail(
-    label: _text(json['libelle'])
+    label: jsonText(json['libelle'])
         .replaceFirst("Heures d'appel", "Temps d'appel"),
-    value: _text(json['valeur']),
-    refValue: _text(json['valeurRef']),
+    value: jsonText(json['valeur']),
+    refValue: jsonText(json['valeurRef']),
   );
 
   bool get hasQuota => refValue.isNotEmpty;
@@ -126,12 +132,13 @@ class ConsoDetail {
 
   String? get quota {
     if (!hasQuota) return null;
+    if (_parseDuration(refValue) != null) return _prettify(refValue);
     final match = _quantityRe.firstMatch(refValue);
     return _prettify(match?.group(0) ?? refValue);
   }
 
   String? get quotaNote {
-    if (!hasQuota) return null;
+    if (!hasQuota || _parseDuration(refValue) != null) return null;
     final match = _quantityRe.firstMatch(refValue);
     if (match == null) return null;
     final rest = refValue.substring(match.end).trim();
@@ -188,13 +195,3 @@ String formatDuration(Duration d) {
   if (m > 0) return '$m min ${s.toString().padLeft(2, '0')} s';
   return '$s s';
 }
-
-String _text(dynamic value) => value == null
-    ? ''
-    : value.toString().trim().replaceAll(RegExp(r'\s+'), ' ');
-
-List<T> _mapList<T>(dynamic list, T Function(Map) build) => [
-  if (list is List)
-    for (final item in list)
-      if (item is Map) build(item),
-];

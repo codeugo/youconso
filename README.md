@@ -2,21 +2,37 @@
 
 Application Flutter pour consulter sa consommation et ses factures Youprice.
 
+Les builds (APK Android et IPA iOS) sont disponibles dans les releases GitHub.
+
+## Environnement de dev
+
 ```
+brew install --cask flutter
+flutter doctor
+flutter pub get
+```
+
+Xcode pour iOS, Android Studio pour Android. `flutter doctor` indique ce qui manque.
+
+## Lancer et vérifier
+
+```
+flutter run
 flutter analyze
 flutter test
+```
+
+## Installer sur iOS
+
+Simulateur ou iPhone branché : `flutter run -d ios`. Pour un iPhone, ouvrir
+`ios/Runner.xcworkspace` dans Xcode et choisir une équipe de signature.
+Sinon, sideloader l'IPA publié dans les releases GitHub.
+
+## Installer sur Android
+
+```
 flutter build apk --release --split-per-abi
 ```
 
-## Widget écran d'accueil
-
-Le widget Android (`android/.../ConsoWidget.kt`) et le widget iOS
-(`ios/ConsoWidget/ConsoWidget.swift`, extension WidgetKit `ConsoWidgetExtension`)
-partagent les mêmes données, écrites par `lib/conso_widget.dart`.
-
-Sur iOS, l'app et l'extension communiquent via l'App Group
-`group.fr.youconso.youconso` : pour un build signé, activer la capability
-« App Groups » avec cet identifiant sur les deux cibles (`Runner` et
-`ConsoWidgetExtension`) dans le compte développeur Apple. Les outils de
-sideload renomment ce groupe : `ios/Shared/AppGroup.swift` lit l'identifiant
-réel dans le profil de provisioning embarqué, des deux côtés.
+Installer l'APK de `build/app/outputs/flutter-apk/` sur le téléphone, ou
+prendre celui des releases GitHub.

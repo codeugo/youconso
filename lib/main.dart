@@ -15,9 +15,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr_FR');
   Intl.defaultLocale = 'fr_FR';
+  final api = YoupriceApi(SecureStore());
   final settings = await ThemeSettings.load();
-  await registerConsoWidget();
-  runApp(YouConsoApp(api: YoupriceApi(SecureStore()), settings: settings));
+  await Future.wait([api.init(), registerConsoWidget()]);
+  runApp(YouConsoApp(api: api, settings: settings));
 }
 
 class YouConsoApp extends StatelessWidget {
@@ -53,7 +54,7 @@ class YouConsoApp extends StatelessWidget {
                   GlobalWidgetsLocalizations.delegate,
                   GlobalCupertinoLocalizations.delegate,
                 ],
-                home: _Root(api: api),
+                home: RootScreen(api: api),
               ),
             ),
       ),
@@ -61,23 +62,19 @@ class YouConsoApp extends StatelessWidget {
   }
 }
 
-class _Root extends StatelessWidget {
-  const _Root({required this.api});
+/// Shows home or login depending on [YoupriceApi.session].
+class RootScreen extends StatelessWidget {
+  const RootScreen({super.key, required this.api});
 
   final YoupriceApi api;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: api.hasSession(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        return snapshot.data! ? HomeScreen(api: api) : LoginScreen(api: api);
-      },
+    return ValueListenableBuilder<Session>(
+      valueListenable: api.session,
+      builder: (context, session, _) => session.active
+          ? HomeScreen(api: api)
+          : LoginScreen(api: api, message: session.message),
     );
   }
 }

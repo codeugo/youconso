@@ -56,18 +56,18 @@ class ThemeScope extends InheritedNotifier<ThemeSettings> {
 }
 
 Future<void> showThemeDialog(BuildContext context) {
-  final settings = ThemeScope.of(context);
   return showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Thème'),
-      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: ValueListenableBuilder<ThemeMode>(
-          valueListenable: settings,
-          builder: (context, mode, _) => RadioGroup<ThemeMode>(
-            groupValue: mode,
+    builder: (context) {
+      // ThemeScope is an InheritedNotifier: this builder rebuilds on change.
+      final settings = ThemeScope.of(context);
+      return AlertDialog(
+        title: const Text('Thème'),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: RadioGroup<ThemeMode>(
+            groupValue: settings.value,
             onChanged: (value) {
               if (value != null) settings.setMode(value);
             },
@@ -83,13 +83,13 @@ Future<void> showThemeDialog(BuildContext context) {
             ),
           ),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Fermer'),
-        ),
-      ],
-    ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      );
+    },
   );
 }

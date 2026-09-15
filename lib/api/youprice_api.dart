@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/conso.dart';
@@ -14,14 +14,29 @@ class ApiException implements Exception {
   ApiException(this.message, {this.sessionLost = false});
 
   final String message;
+
+  /// Session cleared; [YoupriceApi.session] already switched to inactive.
   final bool sessionLost;
 
   @override
   String toString() => message;
 }
 
+enum LoginResult { loggedIn, codeRequired }
+
+class Session {
+  const Session.active() : active = true, message = null;
+  const Session.inactive({this.message}) : active = false;
+
+  final bool active;
+
+  /// Reason shown on the login screen, if any.
+  final String? message;
+}
+
 class YoupriceApi {
-  YoupriceApi(this._store);
+  YoupriceApi(this._store, {http.Client? client})
+    : _client = client ?? http.Client();
 
   static const baseUrl = 'https://api.youprice.fr/Vitrine';
   static const _jsonHeaders = {
@@ -31,24 +46,37 @@ class YoupriceApi {
   static final _random = Random();
 
   final SecureStore _store;
-  final _client = http.Client();
+  final http.Client _client;
 
-  Future<bool> hasSession() async {
-    final token = await _store.token;
-    return token != null && token.isNotEmpty;
+  /// Single source of truth for the logged-in state.
+  final session = ValueNotifier<Session>(const Session.inactive());
+
+  /// Loads the stored session. Unreadable storage leaves it inactive.
+  Future<void> init() async {
+    try {
+      final token = await _store.token;
+      if (token != null && token.isNotEmpty) {
+        session.value = const Session.active();
+      }
+    } catch (_) {}
   }
 
-  Future<void> logout() => _store.clearSession();
+  Future<void> logout() async {
+    await _store.clearSession();
+    session.value = const Session.inactive();
+  }
 
-  Future<bool> login(String username, String password) async {
+  Future<LoginResult> login(String username, String password) async {
     final response = await _auth('/Auth/authenticate', {
       'username': username,
       'password': password,
       'publicKey': await _store.publicKey ?? '',
     });
     final data = _decode(response);
-    if (await _storeSession(data, username, password)) return false;
-    if (response.statusCode == 200) return true;
+    if (await _storeSession(data, username, password)) {
+      return LoginResult.loggedIn;
+    }
+    if (response.statusCode == 200) return LoginResult.codeRequired;
     throw ApiException(_messageOf(data, response.statusCode));
   }
 
@@ -167,15 +195,22 @@ class YoupriceApi {
     if (publicKey is String && publicKey.isNotEmpty) {
       await _store.setPublicKey(publicKey);
     }
+    session.value = const Session.active();
     return true;
   }
 
-  Future<bool> _silentRelogin() async {
+  /// Concurrent 401s share one relogin attempt.
+  Future<bool> _silentRelogin() =>
+      _relogin ??= _doSilentRelogin().whenComplete(() => _relogin = null);
+
+  Future<bool>? _relogin;
+
+  Future<bool> _doSilentRelogin() async {
     final username = await _store.username;
     final password = await _store.password;
     if (username == null || password == null) return false;
     try {
-      return !await login(username, password);
+      return await login(username, password) == LoginResult.loggedIn;
     } on ApiException {
       return false;
     }
@@ -194,7 +229,7 @@ class YoupriceApi {
   }) async {
     final token = await _store.token;
     if (token == null || token.isEmpty) {
-      throw ApiException('Vous n\'êtes pas connecté.', sessionLost: true);
+      await _endSession('Vous n\'êtes pas connecté.');
     }
     final response = await _send(
       () => send({
@@ -207,16 +242,18 @@ class YoupriceApi {
       if (retry && await _silentRelogin()) {
         return _authedResponse(send, retry: false);
       }
-      await _store.clearSession();
-      throw ApiException(
-        'Session expirée, veuillez vous reconnecter.',
-        sessionLost: true,
-      );
+      await _endSession('Session expirée, veuillez vous reconnecter.');
     }
     if (response.statusCode >= 400) {
       throw ApiException(_messageOf(_decode(response), response.statusCode));
     }
     return response;
+  }
+
+  Future<Never> _endSession(String message) async {
+    await _store.clearSession();
+    session.value = Session.inactive(message: message);
+    throw ApiException(message, sessionLost: true);
   }
 
   Future<http.Response> _send(Future<http.Response> Function() request) async {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../api/youprice_api.dart';
-import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.api, this.message});
@@ -45,12 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ..showSnackBar(SnackBar(content: Text(text)));
   }
 
-  void _goHome() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => HomeScreen(api: widget.api)),
-    );
-  }
-
+  // On success the root screen switches to home by itself.
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _busy = true);
@@ -61,18 +55,13 @@ class _LoginScreenState extends State<LoginScreen> {
           _password.text,
           _code.text.trim(),
         );
-        if (mounted) _goHome();
         return;
       }
-      final codeRequired = await widget.api.login(
+      final result = await widget.api.login(
         _username.text.trim(),
         _password.text,
       );
-      if (!mounted) return;
-      if (!codeRequired) {
-        _goHome();
-        return;
-      }
+      if (!mounted || result == LoginResult.loggedIn) return;
       setState(() {
         _codeStep = true;
         _info =

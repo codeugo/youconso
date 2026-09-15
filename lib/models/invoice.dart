@@ -1,3 +1,5 @@
+import 'json.dart';
+
 class Invoice {
   const Invoice({
     this.id,
@@ -16,30 +18,21 @@ class Invoice {
   final String? status;
 
   factory Invoice.fromJson(Map json) => Invoice(
-    id: _text(json['id']),
-    name: _text(json['invoiceName']),
+    id: jsonTextOrNull(json['id']),
+    name: jsonTextOrNull(json['invoiceName']),
     date: DateTime.tryParse(json['invoiceDate']?.toString() ?? ''),
-    amount: _number(json['montantTTC']),
-    remaining: _number(json['montantRestant']),
-    status: _text(json['invoiceStatus']),
+    amount: jsonNumber(json['montantTTC']),
+    remaining: jsonNumber(json['montantRestant']),
+    status: jsonTextOrNull(json['invoiceStatus']),
   );
 
   bool get isPaid {
     final s = status?.toLowerCase() ?? '';
-    if (s.contains('pay') && !s.contains('partiel') && !s.contains('non')) {
-      return true;
-    }
+    // "Impayé" contains "pay": negative statuses first.
     if (s.contains('impay') || s.contains('non pay') || s.contains('partiel')) {
       return false;
     }
+    if (s.contains('pay') && !s.contains('non')) return true;
     return remaining != null && remaining! <= 0;
   }
-
-  static String? _text(dynamic value) {
-    final text = value?.toString().trim() ?? '';
-    return text.isEmpty ? null : text;
-  }
-
-  static double? _number(dynamic value) =>
-      value is num ? value.toDouble() : null;
 }

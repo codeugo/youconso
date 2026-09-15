@@ -10,13 +10,10 @@ import 'storage/secure_store.dart';
 
 const _keys = ['number', 'title', 'used', 'quota', 'progress', 'time'];
 
-/// Nom du widget : classe `ConsoWidget` sur Android, `kind` WidgetKit sur iOS.
+// Android `ConsoWidget` class, iOS WidgetKit `kind`.
 const _widgetName = 'ConsoWidget';
 
-/// App Group partagé entre l'app iOS et l'extension widget
-/// (ios/Runner/Runner.entitlements, ios/ConsoWidget/ConsoWidget.entitlements).
-/// Valeur de repli : le natif renvoie l'identifiant réel, qui peut être renommé
-/// par un outil de sideload (voir ios/Shared/AppGroup.swift).
+// Fallback only: native returns the real id, sideload tools may rename it.
 const _appGroupId = 'group.fr.youconso.youconso';
 
 const _appGroupChannel = MethodChannel('fr.youconso.youconso/app_group');
