@@ -8,7 +8,7 @@ import 'models/conso.dart';
 import 'models/line_info.dart';
 import 'storage/secure_store.dart';
 
-const _keys = ['number', 'title', 'used', 'quota', 'progress', 'time'];
+const _keys = ['number', 'title', 'used', 'quota', 'progress', 'updatedAt'];
 
 // Android `ConsoWidget` class, iOS WidgetKit `kind`.
 const _widgetName = 'ConsoWidget';
@@ -46,15 +46,15 @@ Future<void> updateConsoWidget(Conso conso, String number) async {
       ?.detail;
   final ratio = detail?.ratio;
   if (detail == null || ratio == null) return clearConsoWidget();
-  final now = DateTime.now();
   await HomeWidget.saveWidgetData('number', number);
   await HomeWidget.saveWidgetData('title', formatPhone(number));
   await HomeWidget.saveWidgetData('used', detail.displayValue);
   await HomeWidget.saveWidgetData('quota', 'sur ${detail.quota}');
   await HomeWidget.saveWidgetData('progress', (ratio * 100).round());
+  // Formatted natively: the text changes at midnight without the app.
   await HomeWidget.saveWidgetData(
-    'time',
-    'Actualisé à ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
+    'updatedAt',
+    DateTime.now().millisecondsSinceEpoch,
   );
   await _reload();
 }

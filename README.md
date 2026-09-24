@@ -10,8 +10,8 @@ Projet indépendant, sans lien avec Youprice. Il s'appuie sur l'API non
 documentée de l'espace client, qui peut changer sans préavis. Les identifiants
 ne sont envoyés qu'à Youprice et restent dans le stockage sécurisé du téléphone.
 
-Seule limite connue : la session expire au bout de 4 h et Youprice envoie un
-mail à chaque reconnexion automatique.
+Seule limite connue, Youprice envoie un mail à chaque reconnexion,
+c'est-à-dire quand on relance l'application ou qu'on met à jour le widget.
 
 Licence [GPL-3.0](LICENSE).
 

@@ -13,19 +13,21 @@ struct ConsoData {
   let used: String
   let quota: String
   let progress: Int
-  let time: String
+  /// `nil` for data written before this key existed.
+  let updatedAt: Date?
 
   /// `nil` when logged out ("used" key absent).
   static func load() -> ConsoData? {
     guard let prefs = UserDefaults(suiteName: appGroupId),
       let used = prefs.string(forKey: "used")
     else { return nil }
+    let updatedAt = prefs.double(forKey: "updatedAt")  // milliseconds
     return ConsoData(
       title: prefs.string(forKey: "title") ?? "",
       used: used,
       quota: prefs.string(forKey: "quota") ?? "",
       progress: prefs.integer(forKey: "progress"),
-      time: prefs.string(forKey: "time") ?? "")
+      updatedAt: updatedAt > 0 ? Date(timeIntervalSince1970: updatedAt / 1000) : nil)
   }
 
   static let preview = ConsoData(
@@ -33,7 +35,7 @@ struct ConsoData {
     used: "12,3 Go",
     quota: "sur 50 Go",
     progress: 25,
-    time: "Actualisé à 09:41")
+    updatedAt: Date())
 }
 
 struct ConsoEntry: TimelineEntry {
@@ -52,9 +54,18 @@ struct ConsoProvider: TimelineProvider {
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<ConsoEntry>) -> Void) {
-    // The app reloads the timeline itself after writing new data.
-    let entry = ConsoEntry(date: Date(), data: ConsoData.load())
-    completion(Timeline(entries: [entry], policy: .never))
+    // The app reloads the timeline itself after writing new data; the only
+    // scheduled change is the time turning into a date at midnight.
+    let now = Date()
+    let data = ConsoData.load()
+    var entries = [ConsoEntry(date: now, data: data)]
+    if let updatedAt = data?.updatedAt, Calendar.current.isDate(updatedAt, inSameDayAs: now),
+      let midnight = Calendar.current.date(
+        byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: now))
+    {
+      entries.append(ConsoEntry(date: midnight, data: data))
+    }
+    completion(Timeline(entries: entries, policy: .never))
   }
 }
 
@@ -66,7 +77,7 @@ struct ConsoWidgetView: View {
       if let data = entry.data {
         WidgetHeader(title: data.title)
         Spacer(minLength: 0)
-        ConsoBody(data: data)
+        ConsoBody(data: data, now: entry.date)
       } else {
         WidgetHeader(title: "YouConso")
         Spacer(minLength: 0)
@@ -108,6 +119,7 @@ private struct WidgetHeader: View {
 
 private struct ConsoBody: View {
   let data: ConsoData
+  let now: Date
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -123,13 +135,45 @@ private struct ConsoBody: View {
       ProgressBar(progress: data.progress)
         .frame(height: 6)
         .padding(.top, 8)
-      Text(data.time)
-        .font(.system(size: 11))
-        .foregroundColor(.white.opacity(0.6))
-        .lineLimit(1)
+      UpdatedAt(date: data.updatedAt, now: now)
         .padding(.top, 6)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+/// "Actualisé à 9:41" the same day, then "Actualisé le 21/09" and a hint,
+/// since the widget never logs in again by itself.
+private struct UpdatedAt: View {
+  let date: Date?
+  let now: Date
+
+  private static let time = formatter("H:mm")
+  private static let day = formatter("dd/MM")
+
+  private static func formatter(_ format: String) -> DateFormatter {
+    let formatter = DateFormatter()
+    formatter.dateFormat = format
+    return formatter
+  }
+
+  var body: some View {
+    let today = date.map { Calendar.current.isDate($0, inSameDayAs: now) } ?? false
+    VStack(alignment: .leading, spacing: 0) {
+      if let date = date {
+        Text(
+          today
+            ? "Actualisé à \(Self.time.string(from: date))"
+            : "Actualisé le \(Self.day.string(from: date))")
+      }
+      if !today {
+        Text("Ouvrez l'app pour actualiser")
+      }
+    }
+    .font(.system(size: 11))
+    .foregroundColor(.white.opacity(0.6))
+    .lineLimit(1)
+    .minimumScaleFactor(0.8)
   }
 }
 
