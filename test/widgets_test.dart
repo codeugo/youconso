@@ -51,6 +51,28 @@ void main() {
     expect(find.byIcon(Icons.public), findsOneWidget);
   });
 
+  testWidgets('ConsoCard : moins de 1 % utilisé', (tester) async {
+    final group = ConsoGroup(label: 'Internet mobile', kind: ConsoKind.data)
+      ..items.add(
+        const ConsoItem(
+          detail: ConsoDetail(
+            label: 'En France',
+            value: '201,6 MO',
+            refValue: "300 GO Ajustable jusqu'à 300 GO",
+          ),
+          categoryLabel: 'En France métropolitaine',
+          international: false,
+        ),
+      );
+    await tester.pumpWidget(wrap(ConsoCard(group: group)));
+    await tester.pumpAndSettle();
+    expect(find.text('201,6 Mo'), findsOneWidget);
+    expect(
+      find.text("Moins de 1 % utilisé · Ajustable jusqu'à 300 Go"),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('InvoiceTile : facture payée', (tester) async {
     await tester.pumpWidget(
       wrap(InvoiceTile(invoice: Invoice.fromJson(realInvoice))),

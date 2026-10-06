@@ -26,6 +26,15 @@ class Invoice {
     status: jsonTextOrNull(json['invoiceStatus']),
   );
 
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'invoiceName': name,
+    'invoiceDate': date?.toIso8601String(),
+    'montantTTC': amount,
+    'montantRestant': remaining,
+    'invoiceStatus': status,
+  };
+
   bool get isPaid {
     final s = status?.toLowerCase() ?? '';
     // "Impayé" contains "pay": negative statuses first.

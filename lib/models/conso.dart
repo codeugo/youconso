@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'json.dart';
 
 class Conso {
@@ -9,7 +11,13 @@ class Conso {
     jsonList(json is Map ? json['categories'] : null, ConsoCategory.fromJson),
   );
 
-  /// Details grouped by sub-category, France and international together.
+  /// Same shape as the API response, for the local cache.
+  Map<String, Object?> toJson() => {
+    'categories': [for (final c in categories) c.toJson()],
+  };
+
+  /// Cards to show: details grouped by sub-category, France and international
+  /// together, calls and SMS in a single card.
   late final List<ConsoGroup> groups = _groupsOf(categories);
 
   static List<ConsoGroup> _groupsOf(List<ConsoCategory> categories) {
@@ -31,12 +39,57 @@ class Conso {
         }
       }
     }
-    return groups.values.toList();
+    if (groups.isEmpty) return const [];
+    // Youprice omits unused services: show them at zero instead.
+    for (final placeholder in _placeholders) {
+      if (groups.values.every((g) => g.kind != placeholder.kind)) {
+        groups[placeholder.label.toLowerCase()] = placeholder;
+      }
+    }
+    List<ConsoGroup> ofKind(ConsoKind kind) =>
+        groups.values.where((g) => g.kind == kind).toList();
+    return [
+      ...ofKind(ConsoKind.data),
+      // A few plain rows each: one card for both.
+      ConsoGroup(label: 'Appels et SMS', kind: ConsoKind.calls)
+        ..items.addAll([
+          for (final group in [
+            ...ofKind(ConsoKind.calls),
+            ...ofKind(ConsoKind.sms),
+          ])
+            ...group.items,
+        ]),
+      ...ofKind(ConsoKind.other),
+    ];
   }
+
+  static List<ConsoGroup> get _placeholders => [
+    ConsoGroup.unused(ConsoKind.data, 'Internet mobile', {'En France': '0 MO'}),
+    ConsoGroup.unused(ConsoKind.calls, 'Appels', {
+      "Temps d'appel en France": '00:00:00',
+    }),
+    ConsoGroup.unused(ConsoKind.sms, 'SMS / MMS', {
+      'SMS envoyés': '0',
+      'MMS envoyés': '0',
+    }),
+  ];
 }
 
 class ConsoGroup {
   ConsoGroup({required this.label, required this.kind});
+
+  /// A service absent from the response: nothing consumed this month.
+  ConsoGroup.unused(this.kind, this.label, Map<String, String> values) {
+    for (final MapEntry(key: label, :value) in values.entries) {
+      items.add(
+        ConsoItem(
+          detail: ConsoDetail(label: label, value: value, refValue: ''),
+          categoryLabel: '',
+          international: false,
+        ),
+      );
+    }
+  }
 
   final String label;
   final ConsoKind kind;
@@ -70,6 +123,11 @@ class ConsoCategory {
     subCategories: jsonList(json['sousCategories'], ConsoSubCategory.fromJson),
   );
 
+  Map<String, Object?> toJson() => {
+    'libelle': label,
+    'sousCategories': [for (final s in subCategories) s.toJson()],
+  };
+
   bool get isInternational {
     final l = label.toLowerCase();
     return l.contains('international') ||
@@ -90,6 +148,11 @@ class ConsoSubCategory {
     // "detais" (sic) is the actual API key.
     details: jsonList(json['detais'], ConsoDetail.fromJson),
   );
+
+  Map<String, Object?> toJson() => {
+    'libelle': label,
+    'detais': [for (final d in details) d.toJson()],
+  };
 
   ConsoKind get kind {
     final l = label.toLowerCase();
@@ -126,6 +189,12 @@ class ConsoDetail {
     refValue: jsonText(json['valeurRef']),
   );
 
+  Map<String, Object?> toJson() => {
+    'libelle': label,
+    'valeur': value,
+    'valeurRef': refValue,
+  };
+
   bool get hasQuota => refValue.isNotEmpty;
 
   String get displayValue => _prettify(value);
@@ -154,15 +223,24 @@ class ConsoDetail {
     return v < 0 ? 0 : (v > 1 ? 1 : v);
   }
 
+  /// Minutes for durations, Mo for data sizes ("201,6 MO" vs "300 GO").
   static double? _number(String text) {
     final duration = _parseDuration(text);
     if (duration != null) return duration.inSeconds / 60;
-    final match = RegExp(r'-?\d+(?:[.,]\d+)?').firstMatch(text);
+    final match = _numberRe.firstMatch(text);
     if (match == null) return null;
-    return double.tryParse(match.group(0)!.replaceAll(',', '.'));
+    final number = double.tryParse(match[1]!.replaceAll(',', '.'));
+    if (number == null) return null;
+    final unit = match[2]?.toUpperCase();
+    final exponent = unit == null ? 0 : 'KMGT'.indexOf(unit) - 1;
+    return number * math.pow(1024, exponent);
   }
 }
 
+final _numberRe = RegExp(
+  r'(-?\d+(?:[.,]\d+)?)(?:\s*([KMGT])O\b)?',
+  caseSensitive: false,
+);
 final _quantityRe = RegExp(r'\d+(?:[.,]\d+)?\s*[A-Za-zÀ-ÿ]*');
 
 String _prettify(String text) {
@@ -193,5 +271,6 @@ String formatDuration(Duration d) {
   final s = d.inSeconds % 60;
   if (h > 0) return '$h h ${m.toString().padLeft(2, '0')} min';
   if (m > 0) return '$m min ${s.toString().padLeft(2, '0')} s';
+  if (s == 0) return '0 min';
   return '$s s';
 }

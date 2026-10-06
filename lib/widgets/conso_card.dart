@@ -84,7 +84,7 @@ class _QuotaGauge extends StatelessWidget {
     final ratio = detail.ratio;
     final color = ArcGauge.colorFor(context, ratio);
     final caption = [
-      if (ratio != null) '${(ratio * 100).round()} % utilisés',
+      if (ratio != null) _percentUsed(ratio),
       if (item.international) item.categoryLabel,
       if (detail.quotaNote != null) detail.quotaNote!,
     ].join(' · ');
@@ -133,6 +133,12 @@ class _QuotaGauge extends StatelessWidget {
       ),
     );
   }
+}
+
+String _percentUsed(double ratio) {
+  final percent = (ratio * 100).round();
+  if (percent == 0 && ratio > 0) return 'Moins de 1 % utilisé';
+  return '$percent % utilisés';
 }
 
 class _SimpleRow extends StatelessWidget {

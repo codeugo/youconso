@@ -29,6 +29,14 @@ class LineInfo {
     has5G: json['isOption5G'] == true,
   );
 
+  Map<String, Object?> toJson() => {
+    'etatLigne': status,
+    'ypProductName': planName,
+    'operateur': operator,
+    'typeSim': simType,
+    'isOption5G': has5G,
+  };
+
   bool get isActive => status?.toLowerCase().startsWith('acti') ?? true;
 
   String? get planLabel => planName?.replaceAllMapped(

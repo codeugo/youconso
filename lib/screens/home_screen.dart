@@ -8,9 +8,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../api/youprice_api.dart';
 import '../conso_widget.dart';
-import '../models/conso.dart';
 import '../models/invoice.dart';
 import '../models/line_info.dart';
+import '../storage/home_cache.dart';
 import '../theme.dart';
 import '../widgets/conso_card.dart';
 import '../widgets/invoice_tile.dart';
@@ -26,93 +26,175 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _LineData {
-  const _LineData(this.conso, this.info);
-
-  final Conso conso;
-  final LineInfo? info;
-}
-
-/// Awaits [future] swallowing its error, already shown by the FutureBuilder.
-Future<void> _settle(Future<Object?>? future) async {
+/// Awaits [future] swallowing its error, already shown on screen.
+Future<void> _settle(Future<Object?> future) async {
   try {
     await future;
   } catch (_) {}
 }
 
-// On session loss the root screen replaces this one; errors are ignored here.
+bool _sessionLost(Object error) => error is ApiException && error.sessionLost;
+
+// Shows the cached data at once, then refreshes it. On session loss the root
+// screen replaces this one; errors are ignored here.
 class _HomeScreenState extends State<HomeScreen> {
+  final _cache = HomeCache();
+  String? _account;
+  HomeSnapshot _data = HomeSnapshot();
   int _tab = 0;
-  bool _loading = true;
-  Object? _initError;
-  String? _customerName;
-  List<String> _numbers = const [];
-  String? _selectedNumber;
-  Future<_LineData>? _lineFuture;
-  Future<List<Invoice>>? _invoicesFuture;
   String? _openingInvoiceId;
+
+  bool _loadingNumbers = true;
+  Object? _numbersError;
+  Object? _lineError;
+  Object? _invoicesError;
+
+  /// Refresh at launch or on retry, shown as a bar above cached content.
+  bool _refreshingAll = false;
+
+  /// Discards a conso response for a line no longer selected.
+  int _lineRequest = 0;
+
+  String? get _selectedNumber => _data.selectedNumber;
+  CachedLine? get _line => _data.lines[_selectedNumber];
 
   @override
   void initState() {
     super.initState();
-    _init();
+    _start();
   }
 
-  Future<void> _init() async {
+  Future<void> _start() async {
+    final account = _account = await widget.api.account;
+    final cached = account == null ? null : await _cache.load(account);
+    if (!mounted) return;
+    if (cached != null) setState(() => _data = cached);
+    await _refreshAll();
+  }
+
+  /// All requests at once: if the token expired, they share one relogin.
+  Future<void> _refreshAll() async {
+    setState(() => _refreshingAll = true);
+    await Future.wait([_refreshNumbers(), _refreshLine(), _refreshInvoices()]);
+    if (mounted) setState(() => _refreshingAll = false);
+  }
+
+  void _save() {
+    final account = _account;
+    if (account != null) unawaited(_cache.save(account, _data));
+  }
+
+  Future<void> _refreshNumbers() async {
     setState(() {
-      _loading = true;
-      _initError = null;
+      _loadingNumbers = true;
+      _numbersError = null;
     });
+    final name = _customerName();
     try {
       final numbers = await widget.api.activeNumbers();
-      String? name;
-      try {
-        name = await widget.api.customerName();
-      } on ApiException catch (e) {
-        if (e.sessionLost) rethrow;
-      }
+      final customerName = await name;
+      if (!mounted) return;
+      final previous = _selectedNumber;
+      setState(() {
+        _data
+          ..numbers = numbers
+          ..customerName = customerName ?? _data.customerName
+          ..selectedNumber = numbers.contains(previous)
+              ? previous
+              : numbers.firstOrNull;
+        _data.lines.removeWhere((number, _) => !numbers.contains(number));
+        _loadingNumbers = false;
+      });
+      _save();
+      if (_selectedNumber != previous) await _refreshLine();
+    } catch (e) {
+      if (!mounted || _sessionLost(e)) return;
+      setState(() {
+        _loadingNumbers = false;
+        _numbersError = e;
+      });
+      if (_data.numbers != null) _snackError(e);
+    }
+  }
+
+  /// Optional: never throws, a lost session surfaces through other requests.
+  Future<String?> _customerName() async {
+    try {
+      return await widget.api.customerName();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _refreshLine() async {
+    final number = _selectedNumber;
+    if (number == null) return;
+    final request = ++_lineRequest;
+    setState(() {
+      _lineError = null;
+    });
+    final info = _lineInfo(number);
+    try {
+      final conso = await widget.api.conso(number);
+      final lineInfo = await info;
+      unawaited(updateConsoWidget(conso, number));
+      if (!mounted || request != _lineRequest) return;
+      setState(() {
+        _data.lines[number] = CachedLine(
+          conso: conso,
+          info: lineInfo ?? _data.lines[number]?.info,
+          updatedAt: DateTime.now(),
+        );
+      });
+      _save();
+    } catch (e) {
+      if (!mounted || request != _lineRequest || _sessionLost(e)) return;
+      setState(() {
+        _lineError = e;
+      });
+      if (_line != null) _snackError(e);
+    }
+  }
+
+  Future<LineInfo?> _lineInfo(String number) async {
+    try {
+      return await widget.api.lineInfo(number);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _refreshInvoices() async {
+    setState(() {
+      _invoicesError = null;
+    });
+    try {
+      final invoices = await widget.api.invoices();
       if (!mounted) return;
       setState(() {
-        _numbers = numbers;
-        _customerName = name;
-        _selectedNumber = numbers.isNotEmpty ? numbers.first : null;
-        _loading = false;
+        _data.invoices = invoices;
       });
-      _reloadLine();
-      _reloadInvoices();
+      _save();
     } catch (e) {
-      if (!mounted || (e is ApiException && e.sessionLost)) return;
+      if (!mounted || _sessionLost(e)) return;
       setState(() {
-        _initError = e;
-        _loading = false;
+        _invoicesError = e;
       });
+      if (_data.invoices != null) _snackError(e);
     }
   }
 
-  void _reloadLine() {
-    final number = _selectedNumber;
-    setState(() {
-      _lineFuture = number == null ? null : _loadLine(number);
-    });
+  void _selectNumber(String number) {
+    if (number == _selectedNumber) return;
+    setState(() => _data.selectedNumber = number);
+    _save();
+    _refreshLine();
   }
 
-  Future<_LineData> _loadLine(String number) async {
-    final conso = await widget.api.conso(number);
-    LineInfo? info;
-    try {
-      info = await widget.api.lineInfo(number);
-    } on ApiException catch (e) {
-      if (e.sessionLost) rethrow;
-    }
-    unawaited(updateConsoWidget(conso, number));
-    return _LineData(conso, info);
-  }
-
-  void _reloadInvoices() {
-    setState(() {
-      _invoicesFuture = widget.api.invoices();
-    });
-  }
+  void _snackError(Object error) => _snack(
+    'Actualisation impossible : '
+    '${error is ApiException ? error.message : error}',
+  );
 
   void _snack(String text) {
     if (!mounted) return;
@@ -168,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (confirmed != true) return;
     try {
-      await clearConsoWidget();
+      await Future.wait([clearConsoWidget(), _cache.clear()]);
     } finally {
       await widget.api.logout();
     }
@@ -176,9 +258,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showBar = _refreshingAll && _data.numbers != null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_customerName ?? 'YouConso'),
+        // Empty rather than a placeholder while the name loads.
+        title: Text(_data.customerName ?? (_loadingNumbers ? '' : 'YouConso')),
         actions: [
           IconButton(
             tooltip: 'Thème',
@@ -191,6 +275,12 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _logout,
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(2),
+          child: showBar
+              ? const LinearProgressIndicator(minHeight: 2)
+              : const SizedBox(height: 2),
+        ),
       ),
       body: _buildBody(),
       bottomNavigationBar: NavigationBar(
@@ -213,18 +303,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody() {
-    if (_loading) {
+    if (_data.numbers == null) {
+      final error = _numbersError;
+      if (error != null) {
+        return StatusView.error(error: error, onRetry: _refreshAll);
+      }
       return const Center(child: CircularProgressIndicator());
-    }
-    final initError = _initError;
-    if (initError != null) {
-      return StatusView.error(error: initError, onRetry: _init);
     }
     return IndexedStack(index: _tab, children: [_consoTab(), _invoicesTab()]);
   }
 
   Widget _consoTab() {
-    if (_numbers.isEmpty) {
+    final numbers = _data.numbers!;
+    final number = _selectedNumber;
+    if (numbers.isEmpty || number == null) {
       return const StatusView.empty(
         icon: Icons.sim_card_alert_outlined,
         text:
@@ -235,117 +327,111 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return Column(
       children: [
-        if (_numbers.length > 1)
+        if (numbers.length > 1)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: DropdownButtonFormField<String>(
-              initialValue: _selectedNumber,
+              initialValue: number,
               decoration: const InputDecoration(
                 labelText: 'Ligne',
                 border: OutlineInputBorder(),
               ),
               items: [
-                for (final n in _numbers)
+                for (final n in numbers)
                   DropdownMenuItem(value: n, child: Text(formatPhone(n))),
               ],
               onChanged: (value) {
-                if (value == null || value == _selectedNumber) return;
-                _selectedNumber = value;
-                _reloadLine();
+                if (value != null) _selectNumber(value);
               },
             ),
           ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () {
-              _reloadLine();
-              return _settle(_lineFuture);
-            },
-            child: FutureBuilder<_LineData>(
-              future: _lineFuture,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return StatusView.error(
-                    error: snapshot.error!,
-                    onRetry: _reloadLine,
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final data = snapshot.data!;
-                final groups = data.conso.groups;
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  children: [
-                    LineHeader(number: _selectedNumber!, info: data.info),
-                    const SizedBox(height: 16),
-                    if (groups.isEmpty)
-                      const StatusView.empty(
-                        icon: Icons.hourglass_empty,
-                        text: 'Aucune donnée de consommation pour le moment.',
-                      )
-                    else
-                      for (final group in groups) ConsoCard(group: group),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Le forfait se réinitialise le 1er de chaque mois. '
-                      'Tirez vers le bas pour actualiser.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                );
-              },
-            ),
+            onRefresh: () => _settle(_refreshLine()),
+            child: _lineView(number),
           ),
         ),
       ],
     );
   }
 
+  Widget _lineView(String number) {
+    final line = _line;
+    if (line == null) {
+      final error = _lineError;
+      if (error != null) {
+        return StatusView.error(error: error, onRetry: _refreshLine);
+      }
+      return const Center(child: CircularProgressIndicator());
+    }
+    final groups = line.conso.groups;
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      children: [
+        LineHeader(number: number, info: line.info),
+        const SizedBox(height: 16),
+        if (groups.isEmpty)
+          const StatusView.empty(
+            icon: Icons.hourglass_empty,
+            text: 'Aucune donnée de consommation pour le moment.',
+          )
+        else
+          for (final group in groups) ConsoCard(group: group),
+        const SizedBox(height: 8),
+        Text(
+          '${_updatedLabel(line.updatedAt)}\n'
+          'Le forfait se réinitialise le 1er de chaque mois.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _updatedLabel(DateTime at) {
+    final now = DateTime.now();
+    final time = DateFormat.Hm('fr_FR').format(at);
+    if (DateUtils.isSameDay(at, now)) return 'Actualisé à $time';
+    return 'Actualisé le ${DateFormat.MMMd('fr_FR').format(at)} à $time';
+  }
+
   Widget _invoicesTab() {
     return RefreshIndicator(
-      onRefresh: () {
-        _reloadInvoices();
-        return _settle(_invoicesFuture);
+      onRefresh: () => _settle(_refreshInvoices()),
+      child: _invoicesView(),
+    );
+  }
+
+  Widget _invoicesView() {
+    final invoices = _data.invoices;
+    if (invoices == null) {
+      final error = _invoicesError;
+      if (error != null) {
+        return StatusView.error(error: error, onRetry: _refreshInvoices);
+      }
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (invoices.isEmpty) {
+      return const StatusView.empty(
+        icon: Icons.receipt_long_outlined,
+        text: 'Aucune facture pour le moment.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: invoices.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (_, i) {
+        final invoice = invoices[i];
+        return InvoiceTile(
+          invoice: invoice,
+          busy: _openingInvoiceId != null && _openingInvoiceId == invoice.id,
+          onTap: () => _openInvoice(invoice),
+        );
       },
-      child: FutureBuilder<List<Invoice>>(
-        future: _invoicesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return StatusView.error(
-              error: snapshot.error!,
-              onRetry: _reloadInvoices,
-            );
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final invoices = snapshot.data!;
-          if (invoices.isEmpty) {
-            return const StatusView.empty(
-              icon: Icons.receipt_long_outlined,
-              text: 'Aucune facture pour le moment.',
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: invoices.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (_, i) {
-              final invoice = invoices[i];
-              return InvoiceTile(
-                invoice: invoice,
-                busy:
-                    _openingInvoiceId != null &&
-                    _openingInvoiceId == invoice.id,
-                onTap: () => _openInvoice(invoice),
-              );
-            },
-          );
-        },
-      ),
     );
   }
 }

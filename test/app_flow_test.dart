@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,10 +7,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youconso/api/youprice_api.dart';
 import 'package:youconso/main.dart';
+import 'package:youconso/models/conso.dart';
 import 'package:youconso/screens/home_screen.dart';
 import 'package:youconso/screens/login_screen.dart';
+import 'package:youconso/storage/home_cache.dart';
 import 'package:youconso/storage/secure_store.dart';
 import 'package:youconso/widgets/conso_card.dart';
 import 'package:youconso/widgets/invoice_tile.dart';
@@ -42,8 +46,13 @@ void main() {
     WidgetTester tester,
     Future<http.Response> Function(http.Request) handler, {
     Map<String, String> stored = const {},
+    Map<String, Object> prefs = const {},
   }) async {
+    // Tall enough for every conso card: the list builds only visible ones.
+    tester.view.physicalSize = const Size(1080, 4000);
+    addTearDown(tester.view.reset);
     FlutterSecureStorage.setMockInitialValues({...stored});
+    SharedPreferences.setMockInitialValues({...prefs});
     final api = YoupriceApi(SecureStore(), client: MockClient(handler));
     await api.init();
     await tester.pumpWidget(
@@ -182,5 +191,94 @@ void main() {
     expect(api.session.value.active, isFalse);
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(await SecureStore().token, isNull);
+  });
+
+  group('cache local', () {
+    const session = {'user_token': 'tok', 'username': 'u', 'password': 'p'};
+
+    Map<String, Object> cacheFor(String account) => {
+      'home_cache': jsonEncode({
+        'account': account,
+        'data': HomeSnapshot(
+          customerName: 'Jean Dupont',
+          numbers: [phoneNumber],
+          selectedNumber: phoneNumber,
+          lines: {
+            phoneNumber: CachedLine(
+              conso: Conso.fromJson(realConso),
+              updatedAt: DateTime(2026, 10, 1, 9, 30),
+            ),
+          },
+        ).toJson(),
+      }),
+    };
+
+    testWidgets('affiché tout de suite, avant la réponse du serveur', (
+      tester,
+    ) async {
+      final pending = Completer<http.Response>();
+      await pumpApp(
+        tester,
+        (_) => pending.future,
+        stored: session,
+        prefs: cacheFor('u'),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Jean Dupont'), findsOneWidget);
+      expect(find.text('06 12 34 56 78'), findsOneWidget);
+      expect(find.byType(ConsoCard), findsNWidgets(2));
+      expect(find.textContaining('Actualisé le 1 oct.'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      pending.complete(http.Response('', 503));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets("ignoré s'il appartient à un autre compte", (tester) async {
+      final pending = Completer<http.Response>();
+      await pumpApp(
+        tester,
+        (_) => pending.future,
+        stored: session,
+        prefs: cacheFor('autre'),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Jean Dupont'), findsNothing);
+      expect(find.text('YouConso'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      pending.complete(http.Response('', 503));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('mis à jour après actualisation, effacé à la déconnexion', (
+      tester,
+    ) async {
+      await pumpApp(tester, happyBackend, stored: session);
+      await tester.pumpAndSettle();
+      expect(await HomeCache().load('u'), isNotNull);
+      expect((await HomeCache().load('u'))!.invoices, hasLength(1));
+
+      await tester.tap(find.byTooltip('Se déconnecter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Se déconnecter'));
+      await tester.pumpAndSettle();
+      expect(await HomeCache().load('u'), isNull);
+    });
+
+    testWidgets('erreur réseau : les données en cache restent affichées', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        (_) async => http.Response('', 503),
+        stored: session,
+        prefs: cacheFor('u'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ConsoCard), findsNWidgets(2));
+      expect(find.textContaining('Actualisation impossible'), findsOneWidget);
+      expect(find.text('Réessayer'), findsNothing);
+    });
   });
 }

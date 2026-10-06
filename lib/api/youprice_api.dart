@@ -65,6 +65,15 @@ class YoupriceApi {
     } catch (_) {}
   }
 
+  /// Identifier of the logged-in account, if any.
+  Future<String?> get account async {
+    try {
+      return await _store.username;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> logout() async {
     await _store.clearSession();
     session.value = const Session.inactive();

@@ -32,7 +32,12 @@ void main() {
     test('regroupe France et international par sous-catégorie', () {
       final conso = Conso.fromJson(realConso);
       final groups = conso.groups;
-      expect(groups.map((g) => g.label), ['Internet mobile', 'Appels']);
+      expect(groups.map((g) => g.label), ['Internet mobile', 'Appels et SMS']);
+      expect(groups.last.items.map((i) => i.detail.label), [
+        "Temps d'appel en France",
+        'SMS envoyés',
+        'MMS envoyés',
+      ]);
       expect(groups.first.items, hasLength(2));
       expect(groups.first.withQuota, hasLength(1));
       expect(groups.first.simple.single.international, isTrue);
@@ -41,6 +46,41 @@ void main() {
         isTrue,
         reason: 'calculé une fois',
       );
+    });
+
+    test('services absents affichés à zéro, appels et SMS ensemble', () {
+      final conso = Conso.fromJson({
+        'categories': [
+          {
+            'libelle': 'En France métropolitaine',
+            'sousCategories': [
+              {
+                'libelle': 'Internet mobile',
+                'detais': [
+                  {
+                    'libelle': 'En France',
+                    'valeur': '201,6 MO',
+                    'valeurRef': "300 GO Ajustable jusqu'à 300 GO",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      final groups = conso.groups;
+      expect(groups.map((g) => g.kind), [ConsoKind.data, ConsoKind.calls]);
+      expect(groups.last.label, 'Appels et SMS');
+      expect(groups.last.items.map((i) => i.detail.displayValue), [
+        '0 min',
+        '0',
+        '0',
+      ]);
+      expect(groups.last.withQuota, isEmpty);
+    });
+
+    test('pas de services fictifs si la réponse est vide', () {
+      expect(Conso.fromJson({'categories': []}).groups, isEmpty);
     });
 
     test('tolère une réponse vide ou mal formée', () {
@@ -69,6 +109,18 @@ void main() {
       expect(calls.displayValue, '1 h 00 min');
       expect(calls.quota, '2 h 00 min');
       expect(calls.quotaNote, isNull);
+      const megas = ConsoDetail(
+        label: '',
+        value: '201,6 MO',
+        refValue: "300 GO Ajustable jusqu'à 300 GO",
+      );
+      expect(megas.ratio, closeTo(201.6 / (300 * 1024), 1e-9));
+      const mixed = ConsoDetail(
+        label: '',
+        value: '1,5 GO',
+        refValue: '2048 MO',
+      );
+      expect(mixed.ratio, closeTo(0.75, 1e-9));
       const noQuota = ConsoDetail(label: '', value: '1 GO', refValue: '');
       expect(noQuota.ratio, isNull);
       expect(noQuota.quota, isNull);
@@ -76,6 +128,7 @@ void main() {
   });
 
   test('formatDuration', () {
+    expect(formatDuration(Duration.zero), '0 min');
     expect(formatDuration(const Duration(seconds: 48)), '48 s');
     expect(
       formatDuration(const Duration(minutes: 5, seconds: 3)),
