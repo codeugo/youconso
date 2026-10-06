@@ -40,11 +40,9 @@ class YouConsoApp extends StatelessWidget {
                 debugShowCheckedModeBanner: false,
                 theme: ThemeData(
                   colorScheme: lightDynamic ?? youpriceScheme(Brightness.light),
-                  useMaterial3: true,
                 ),
                 darkTheme: ThemeData(
                   colorScheme: darkDynamic ?? youpriceScheme(Brightness.dark),
-                  useMaterial3: true,
                 ),
                 themeMode: mode,
                 locale: const Locale('fr', 'FR'),

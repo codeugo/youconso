@@ -26,11 +26,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-/// Awaits [future] swallowing its error, already shown on screen.
-Future<void> _settle(Future<Object?> future) async {
+/// For optional data: never throws, a lost session surfaces through the
+/// other requests.
+Future<T?> _orNull<T>(Future<T> future) async {
   try {
-    await future;
-  } catch (_) {}
+    return await future;
+  } catch (_) {
+    return null;
+  }
 }
 
 bool _sessionLost(Object error) => error is ApiException && error.sessionLost;
@@ -89,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadingNumbers = true;
       _numbersError = null;
     });
-    final name = _customerName();
+    final name = _orNull(widget.api.customerName());
     try {
       final numbers = await widget.api.activeNumbers();
       final customerName = await name;
@@ -117,15 +120,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Optional: never throws, a lost session surfaces through other requests.
-  Future<String?> _customerName() async {
-    try {
-      return await widget.api.customerName();
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _refreshLine() async {
     final number = _selectedNumber;
     if (number == null) return;
@@ -133,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _lineError = null;
     });
-    final info = _lineInfo(number);
+    final info = _orNull(widget.api.lineInfo(number));
     try {
       final conso = await widget.api.conso(number);
       final lineInfo = await info;
@@ -153,14 +147,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _lineError = e;
       });
       if (_line != null) _snackError(e);
-    }
-  }
-
-  Future<LineInfo?> _lineInfo(String number) async {
-    try {
-      return await widget.api.lineInfo(number);
-    } catch (_) {
-      return null;
     }
   }
 
@@ -191,10 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshLine();
   }
 
-  void _snackError(Object error) => _snack(
-    'Actualisation impossible : '
-    '${error is ApiException ? error.message : error}',
-  );
+  void _snackError(Object error) => _snack('Actualisation impossible : $error');
 
   void _snack(String text) {
     if (!mounted) return;
@@ -347,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => _settle(_refreshLine()),
+            onRefresh: _refreshLine,
             child: _lineView(number),
           ),
         ),
@@ -400,7 +383,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _invoicesTab() {
     return RefreshIndicator(
-      onRefresh: () => _settle(_refreshInvoices()),
+      onRefresh: _refreshInvoices,
       child: _invoicesView(),
     );
   }

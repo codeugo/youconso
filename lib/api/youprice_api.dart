@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/conso.dart';
 import '../models/invoice.dart';
+import '../models/json.dart';
 import '../models/line_info.dart';
 import '../storage/secure_store.dart';
 
@@ -41,7 +42,7 @@ class YoupriceApi {
   YoupriceApi(this._store, {http.Client? client, this.silentRelogin = true})
     : _client = client ?? http.Client();
 
-  static const baseUrl = 'https://api.youprice.fr/Vitrine';
+  static const _baseUrl = 'https://api.youprice.fr/Vitrine';
   static const _jsonHeaders = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -174,10 +175,7 @@ class YoupriceApi {
 
   Future<List<Invoice>> invoices() async {
     final data = await _get('/invoice/getMonthlyInvoices');
-    final invoices = [
-      for (final item in _list(data))
-        if (item is Map) Invoice.fromJson(item),
-    ];
+    final invoices = jsonList(_list(data), Invoice.fromJson);
     invoices.sort((a, b) {
       final da = a.date, db = b.date;
       if (da == null || db == null) return 0;
@@ -316,7 +314,7 @@ class YoupriceApi {
   }
 
   Uri _uri(String path, [Map<String, String>? query]) {
-    final uri = Uri.parse('$baseUrl$path');
+    final uri = Uri.parse('$_baseUrl$path');
     return query == null ? uri : uri.replace(queryParameters: query);
   }
 

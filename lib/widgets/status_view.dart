@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../api/youprice_api.dart';
-
 /// Empty or error state. A [ListView] so it works inside a [RefreshIndicator].
 class StatusView extends StatelessWidget {
   const StatusView.empty({super.key, required this.icon, required this.text})
     : onRetry = null;
 
-  StatusView.error({
+  const StatusView.error({
     super.key,
     required Object error,
     required VoidCallback this.onRetry,
   }) : icon = Icons.cloud_off,
-       text = error is ApiException ? error.message : '$error';
+       text = '$error';
 
   final IconData icon;
   final String text;
